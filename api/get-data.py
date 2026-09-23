@@ -16,7 +16,6 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         
 
-        self.send_response(200)
 
         parsed_url = urlparse(self.path)
         query_params = parse_qs(parsed_url.query)
@@ -36,7 +35,7 @@ class handler(BaseHTTPRequestHandler):
         
         data = get_db_data()
         
-        self.wfile.write(data.encode('utf-8'))
+        self.wfile.write(json.dumps(data).encode('utf-8'))
          
 def get_db_data():
     db_data = requests.get(f"{UPSTASH_REDIS_REST_URL}/get/watchlist", headers=header)
