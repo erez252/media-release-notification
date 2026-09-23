@@ -1,4 +1,8 @@
 from http.server import BaseHTTPRequestHandler
+import os
+
+# 🔑 Fetch the environment variable named "PASSWORD"
+SECRET_PASSWORD = os.environ.get("PASSWORD")
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -10,4 +14,4 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         
         # 3. Write the response body (must be converted to bytes using .encode()) 📤
-        self.wfile.write(PASSWORD.encode('utf-8'))
+        self.wfile.write(SECRET_PASSWORD.encode('utf-8'))
