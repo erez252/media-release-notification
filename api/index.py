@@ -28,4 +28,4 @@ def get_watchlist():
 
 @app.route('/api', methods=['get'])
 def main_page():
-    return ("main page"), 200
+    return (jsonify({'yep': 'this is the main api page there is nothing here'})), 200
