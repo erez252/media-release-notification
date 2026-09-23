@@ -10,4 +10,4 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         
         # 3. Write the response body (must be converted to bytes using .encode()) 📤
-        self.wfile.write("test test".encode('utf-8'))
+        self.wfile.write(PASSWORD.encode('utf-8'))
