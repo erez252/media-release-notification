@@ -25,3 +25,7 @@ def get_watchlist():
         return jsonify({'error': 'Unauthorized'}), 401
     
     return jsonify(get_db_data()), 200
+
+@app.route('/', methods=['get'])
+def main_page():
+    return ("main page"), 200
