@@ -4,6 +4,8 @@ import os
 from urllib.parse import parse_qs, urlparse
 import requests
 
+UPSTASH_REDIS_REST_URL = os.environ.get('UPSTASH_REDIS_REST_URL')
+UPSTASH_REDIS_REST_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
 
 
 header = {
