@@ -17,9 +17,11 @@ def get_db_data():
     db_data = res.json().get("result")
     return json.loads(db_data) if db_data else []
 
-@app.route('/api/get-data', methods=['GET'])
+@app.route('/api/get-data', methods=['POST'])
 def get_watchlist():
-    if request.args.get('password') != os.environ.get('PASSWORD'):
+    body = request.get_json() or {}
+    user_password = body.get("password")
+    if user_password != os.environ.get('PASSWORD'):
         return jsonify({'error': 'Unauthorized'}), 401
     
     return jsonify(get_db_data()), 200
