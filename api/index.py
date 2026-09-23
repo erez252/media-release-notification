@@ -26,6 +26,6 @@ def get_watchlist():
     
     return jsonify(get_db_data()), 200
 
-@app.route('/', methods=['get'])
+@app.route('/api', methods=['get'])
 def main_page():
     return ("main page"), 200
