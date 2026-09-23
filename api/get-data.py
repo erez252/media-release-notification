@@ -1,54 +1,28 @@
-from http.server import BaseHTTPRequestHandler
-import json
 import os
-from urllib.parse import parse_qs, urlparse
+import json
 import requests
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)  # Replaces do_OPTIONS and manual Access-Control headers
 
 UPSTASH_REDIS_REST_URL = os.environ.get('UPSTASH_REDIS_REST_URL')
 UPSTASH_REDIS_REST_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
 
+headers = {"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"}
 
-header = {
-    "Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"
-}
-
-class handler(BaseHTTPRequestHandler):
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-        self.end_headers()
-    def do_GET(self):
-        
-
-
-        parsed_url = urlparse(self.path)
-        query_params = parse_qs(parsed_url.query)
-        user_password = query_params.get('password', [None])[0]        
-
-        if user_password != os.environ.get('PASSWORD'):
-            self.send_response(401)
-            self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')  # 🌐 Allow CORS
-            self.end_headers()
-            self.wfile.write(json.dumps({'error': 'Unauthorized'}).encode('utf-8'))
-            return
-        
-        # 3. Write the response body (must be converted to bytes using .encode()) 📤
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.send_header(
-            'Access-Control-Allow-Origin', '*'
-        )  # 🌐 Allow any origin to access
-        self.end_headers()
-        
-        data = get_db_data()
-        
-        self.wfile.write(json.dumps(data).encode('utf-8'))
-         
 def get_db_data():
-    db_data = requests.get(f"{UPSTASH_REDIS_REST_URL}/get/watchlist", headers=header)
-    db_data = db_data.json().get("result") or []
-    db_data = json.loads(db_data) if db_data else []
-    return(db_data)
+    res = requests.get(f"{UPSTASH_REDIS_REST_URL}/get/watchlist", headers=headers)
+    db_data = res.json().get("result")
+    return json.loads(db_data) if db_data else []
+
+@app.route('/watchlist', methods=['GET'])
+def get_watchlist():
+    if request.args.get('password') != os.environ.get('PASSWORD'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    return jsonify(get_db_data()), 200
+
+if __name__ == '__main__':
+    app.run()
