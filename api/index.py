@@ -55,7 +55,7 @@ def remove_item ():
         match = False
         db_data = get_db_data()
         for movie in db_data:
-            if movie.get("type") == movie_type and movie.get("id") == movie_id:
+            if movie.get("media_type") == movie_type and movie.get("id") == movie_id:
                 db_data.remove(movie)
                 match = True
                 break
