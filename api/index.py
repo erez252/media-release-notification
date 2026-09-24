@@ -17,6 +17,9 @@ def get_db_data():
     db_data = res.json().get("result")
     return json.loads(db_data) if db_data else []
 
+def update_db(new_data):
+    requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["SET", "watchlist", json.dumps(new_data)])    
+
 @app.route('/api/get-data', methods=['POST'])
 def get_watchlist():
     body = request.get_json() or {}
@@ -29,3 +32,33 @@ def get_watchlist():
 @app.route('/api', methods=['GET'])
 def main_page():
     return (jsonify({'yep': 'this is the main api page there is nothing here'})), 200
+
+@app.route('/api/remove', methods=['POST'])
+def remove_item ():
+    body = request.get_json() or {}
+    user_password = body.get("password")
+    if user_password != os.environ.get('PASSWORD'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    movie_id = body.get("movieId")
+    if movie_id and str(movie_id).isdigit():
+        movie_id = int(movie_id)
+    movie_type = body.get("movieType")
+    if movie_type and movie_id and type(movie_id) is int:
+        match = False
+        db_data = get_db_data()
+        for movie in db_data:
+            if movie.get("type") == movie_type and movie.get("id") == movie_id:
+                db_data.remove(movie)
+                match = True
+                break
+        if not match:
+            return jsonify({"error": "Unprocessable Entity", "message": "Cannot delete item because it does not exist."}), 422
+        update_db(db_data)
+        return jsonify({"message": f"Removed item with an id of {movie_id}"}), 200
+    else:
+        return jsonify({"error": "Bad Request", "message": "One or more missing required parameters"}), 400
+
+        
+        
+        
+            
