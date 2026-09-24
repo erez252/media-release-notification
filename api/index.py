@@ -3,6 +3,7 @@ import json
 import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from datetime import datetime, timezone
 
 app = Flask(__name__)
 CORS(app)  # Handles CORS preflight headers automatically
@@ -88,34 +89,77 @@ def add_item():
         db_data = get_db_data()
         for item in db_data:
             if item.get("media_type") == media_type and item.get("id") == media_id:
-                return jsonify({"error": "Unprocessable Entity", "message": "Cannot add item because it is already exist."}), 422
+                return jsonify({"error": "Unprocessable Entity", "message": "Cannot add item because it is already exists."}), 422
 
 
         movie_response = requests.get(f"https://api.themoviedb.org/3/{media_type}/{media_id}?api_key={TMDB_API_KEY}")
         if movie_response.status_code == 404:
             return jsonify({"error": "No results"}), 404
 
+        justwatch_data_url = f"https://api.themoviedb.org/3/{media_type}/{media_id}/watch/providers?api_key={TMDB_API_KEY}"
+        response = requests.get(justwatch_data_url)
+        digital = False
+        watch_data = {}
+        if response.status_code == 200:
+                watch_data = response.json()
+        if watch_data.get("results", []):
+            digital = True
+            
+            
+        
         movie_data = movie_response.json()
+
+        raw_movie_data = movie_response.json()
+        
         movie_data = {
                 "id": movie_data.get("id"),
-                "title": movie_data.get("title"),
+                "title": movie_data.get("title") or movie_data.get("name"),
                 "poster_path": movie_data.get("poster_path"),
                 "overview": movie_data.get("overview"),
-                "release_date": movie_data.get("release_date"),
                 "runtime": movie_data.get("runtime"),
                 "status": movie_data.get("status"),
                 "genres": movie_data.get("genres"),
-                "media_type": "movie" if movie_data.get("title") else "tv"
+                "media_type": "movie" if movie_data.get("title") else "tv",
+                "last_notification": None,
+                "digital": digital,
+                "imdb_id": None,
+                "tvdb_id": None
             }
+        if media_type == "movie":
+            movie_data["release_date"] = raw_movie_data.get("release_date", None)
+            movie_data["runtime"] = raw_movie_data.get("runtime", None)
+        else:
+            movie_data["first_air_date"] = raw_movie_data.get("first_air_date", None)
+            movie_data["last_air_date"] = raw_movie_data.get("last_air_date", None)
+            
+            last_episode_to_air = raw_movie_data.get("last_episode_to_air", {})
+            if last_episode_to_air:
+                movie_data["last_episode_to_air"] = last_episode_to_air.get("air_date", None)
+            else:
+                movie_data["last_episode_to_air"] = None
+
+            response = requests.get(f"https://api.themoviedb.org/3/tv/{raw_movie_data.get('id')}/external_ids?api_key={TMDB_API_KEY}")
+
+            external_ids = response.json()
+            
+            if external_ids.get("imdb_id"):
+                movie_data["imdb_id"] = external_ids.get("imdb_id")
+            if external_ids.get("tvdb_id"):
+                movie_data["tvdb_id"] = external_ids.get("tvdb_id")
+                
+            now_iso = datetime.now(timezone.utc).isoformat()
+            movie_data["last_notification"] = now_iso
+              
+        
         db_data.append(movie_data)
         response = requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["SET", "watchlist", json.dumps(db_data)])
         if response.status_code == 200:
             return jsonify({"success": "true", "message": "Added the media"}), 200
 
-        return jsonify({"error": "something want wrong", "message": "something want wrong while adding the media"}), 500
-    except TypeError:
-        return jsonify({"error": "something want wrong", "message": "something want wrong while adding the media"}), 500
-        
+        return jsonify({"error": "something went wrong", "message": "something went wrong while adding the media"}), 500
+    except (TypeError, requests.exceptions.RequestException):
+        return jsonify({"error": "something went wrong", "message": "something went wrong while adding the media"}), 500
+    
  
 
 @app.route('/api/tmdb/search', methods=['POST'])
@@ -167,4 +211,4 @@ def search_tmdb():
         
 
     except KeyError:
-        return jsonify({"error": "Bad Request", "message": "Something want wrong fetching tmdb data"}), 502
+        return jsonify({"error": "Bad Request", "message": "something went wrong fetching tmdb data"}), 502
