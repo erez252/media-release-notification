@@ -12,6 +12,10 @@ UPSTASH_REDIS_REST_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
 
 headers = {"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"}
 
+def is_authorized(body):
+    user_password = body.get("password")
+    return isinstance(user_password, str) and user_password == os.environ.get('PASSWORD')
+
 def get_db_data():
     res = requests.get(f"{UPSTASH_REDIS_REST_URL}/get/watchlist", headers=headers)
     db_data = res.json().get("result")
@@ -23,8 +27,9 @@ def update_db(new_data):
 @app.route('/api/get-data', methods=['POST'])
 def get_watchlist():
     body = request.get_json() or {}
-    user_password = body.get("password")
-    if user_password != os.environ.get('PASSWORD'):
+    
+    authorized = is_authorized(body)
+    if not authorized:
         return jsonify({'error': 'Unauthorized'}), 401
     
     return jsonify(get_db_data()), 200
@@ -36,8 +41,8 @@ def main_page():
 @app.route('/api/remove', methods=['POST'])
 def remove_item ():
     body = request.get_json() or {}
-    user_password = body.get("password")
-    if user_password != os.environ.get('PASSWORD'):
+    authorized = is_authorized(body)
+    if not authorized:
         return jsonify({'error': 'Unauthorized'}), 401
     movie_id = body.get("movieId")
     if movie_id and str(movie_id).isdigit():
