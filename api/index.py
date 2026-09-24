@@ -67,6 +67,57 @@ def remove_item ():
         return jsonify({"error": "Bad Request", "message": "One or more missing required parameters"}), 400
 
 
+@app.route('/api/add', methods=['POST'])
+def add_item():
+    
+    try:
+        body = request.get_json() or {}
+
+        authorized = is_authorized(body)
+        if not authorized:
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        media_id = body.get("mediaId")
+        media_type = body.get("mediaType")
+        if media_id and str(media_id).isdigit():
+            media_id = int(media_id)
+        if not media_id or not str(media_id).isdigit() or not (media_type == "tv" or media_type == "movie"):
+            return jsonify({"error": "Bad Request", "message": "One or more missing required parameters"}), 400
+
+
+        db_data = get_db_data()
+        for item in db_data:
+            if item.get("media_type") == media_type and item.get("id") == media_id:
+                return jsonify({"error": "Unprocessable Entity", "message": "Cannot add item because it is already exist."}), 422
+
+
+        movie_response = requests.get(f"https://api.themoviedb.org/3/{media_type}/{media_id}?api_key={TMDB_API_KEY}")
+        if movie_response.status_code == 404:
+            return jsonify({"error": "No results"}), 404
+
+        movie_data = movie_response.json()
+        movie_data = {
+                "id": movie_data.get("id"),
+                "title": movie_data.get("title"),
+                "poster_path": movie_data.get("poster_path"),
+                "overview": movie_data.get("overview"),
+                "release_date": movie_data.get("release_date"),
+                "runtime": movie_data.get("runtime"),
+                "status": movie_data.get("status"),
+                "genres": movie_data.get("genres"),
+                "media_type": "movie" if movie_data.get("title") else "tv"
+            }
+        db_data.append(movie_data)
+        response = requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["SET", "watchlist", json.dumps(db_data)])
+        if response.status_code == 200:
+            return jsonify({"success": "true", "message": "Added the media"}), 200
+
+        return jsonify({"error": "something want wrong", "message": "something want wrong while adding the media"}), 500
+    except TypeError:
+        return jsonify({"error": "something want wrong", "message": "something want wrong while adding the media"}), 500
+        
+ 
+
 @app.route('/api/tmdb/search', methods=['POST'])
 def search_tmdb():
     body = request.get_json() or {}
