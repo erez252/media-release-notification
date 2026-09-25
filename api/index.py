@@ -147,7 +147,23 @@ def add_item():
                 movie_data["imdb_id"] = external_ids.get("imdb_id")
             if external_ids.get("tvdb_id"):
                 movie_data["tvdb_id"] = external_ids.get("tvdb_id")
-                
+            
+            is_tvmaze_id = False
+            if movie_data.get("imdb_id", ""):
+                response = requests.get(f"https://api.tvmaze.com/lookup/shows?imdb={movie_data.get('imdb_id')}")
+                if response.status_code == 200:
+                    is_tvmaze_id = True
+                    tvmaze_data = response.json()
+                    movie_data["tvmaze_id"] = tvmaze_data.get("id")
+            if not is_tvmaze_id and movie_data.get("tvdb_id", ""):
+                response = requests.get(f"https://api.tvmaze.com/lookup/shows?thetvdb={movie_data.get('tvdb_id')}")
+                if response.status_code == 200:
+                    tvmaze_data = response.json()
+                    movie_data["tvmaze_id"] = tvmaze_data.get("id")
+
+                    
+                    
+                    
             now_iso = datetime.now(timezone.utc).isoformat()
             movie_data["last_notification"] = now_iso
               
