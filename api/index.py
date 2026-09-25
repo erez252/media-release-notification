@@ -225,12 +225,14 @@ def check_movie():
         db_data = get_db_data()
         needs_update = []
         for item in db_data:
+                justwatch_data = {}
                 if item.get("media_type") == "movie" and not item.get("digital"):
-                    justwatch_data = {}
 
-                    response = requests.get(f"https://api.themoviedb.org/3/{item.get('media_type')}/{item.get('id')}/watch/providers?api_key={TMDB_API_KEY}")
+                    response = requests.get(f"https://api.themoviedb.org/3/{item.get('media_type')}/{item.get('id')}/watch/providers?api_key={TMDB_API_KEY}", timeout=5)
                     if response.status_code == 200:
                         justwatch_data = response.json()
+                    elif response.status_code == 429:
+                        break
 
                     if justwatch_data.get("results", []):
                         item["digital"] = True
@@ -241,6 +243,6 @@ def check_movie():
                 requests.post(DISCORD_URL, json={"content": f"{movie.get('title')} is now available to watch"})
 
         return jsonify({"success": "true", "message": "check_movie checked successfully"}), 200
-    except KeyError:
-        return jsonify({"error": "Bad Gateway", "message": "something went wrong fetching data"}), 502
+    except Exception as e:
+        return jsonify({"error": "Bad Gateway", "message": f"Server error: {e}"}), 502
         
