@@ -11,6 +11,7 @@ CORS(app)  # Handles CORS preflight headers automatically
 UPSTASH_REDIS_REST_URL = os.environ.get('UPSTASH_REDIS_REST_URL')
 UPSTASH_REDIS_REST_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
 TMDB_API_KEY = os.environ.get('TMDB_API_KEY')
+DISCORD_URL = os.environ.get('DISCORD_URL')
 
 headers = {"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"}
 
@@ -212,3 +213,34 @@ def search_tmdb():
 
     except KeyError:
         return jsonify({"error": "Bad Request", "message": "something went wrong fetching tmdb data"}), 502
+
+
+@app.route('/api/checker/movie', methods=['POST'])
+def check_movie():
+    try:
+        body = request.get_json() or {}
+        authorized = is_authorized(body)
+        if not authorized:
+            return jsonify({'error': 'Unauthorized'}), 401
+        db_data = get_db_data()
+        needs_update = []
+        for item in db_data:
+                if item.get("media_type") == "movie" and not item.get("digital"):
+                    justwatch_data = {}
+
+                    response = requests.get(f"https://api.themoviedb.org/3/{item.get('media_type')}/{item.get('id')}/watch/providers?api_key={TMDB_API_KEY}")
+                    if response.status_code == 200:
+                        justwatch_data = response.json()
+
+                    if justwatch_data.get("results", []):
+                        item["digital"] = True
+                        needs_update.append({"title": item.get('title')})
+        if needs_update:
+            requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["SET", "watchlist", json.dumps(db_data)])
+            for movie in needs_update:
+                requests.post(DISCORD_URL, json={"content": f"{movie.get('title')} is now available to watch"})
+
+        return jsonify({"success": "true", "message": "check_movie checked successfully"}), 200
+    except KeyError:
+        return jsonify({"error": "Bad Gateway", "message": "something went wrong fetching data"}), 502
+        
