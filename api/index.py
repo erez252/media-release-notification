@@ -218,10 +218,11 @@ def search_tmdb():
 @app.route('/api/checker/movie', methods=['POST'])
 def check_movie():
     try:
-        body = request.get_json() or {}
-        authorized = is_authorized(body)
-        if not authorized:
+
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
             return jsonify({'error': 'Unauthorized'}), 401
+        
         db_data = get_db_data()
         needs_update = []
         for item in db_data:
