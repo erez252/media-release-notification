@@ -289,8 +289,49 @@ def send_tv_notification():
     auth_header = request.headers.get("authorization", "")
     if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
         return jsonify({'error': 'Unauthorized'}), 401
-    
+
     body = request.get_json() or {}
+    
+    if len(body) == 1:
+            episode = body[0]
+            if episode.get("name") and episode.get("name") != "TBA":
+                
+                discord_msg = {
+                      "content": "🎬 **New Episode Released!**",
+                      "embeds": [
+                        {
+                          "title": episode.get("show_name"),
+                          "description": "A new episode is now streaming.",
+                          "color": 15844367,
+                          "fields": [
+                            {
+                              "name": "Episode",
+                              "value": f"`S{episode.get("season")}E{episode.get("episode")}`",
+                              "inline": True
+                            },
+                            {
+                              "name": "Title",
+                              "value": f"**{episode.get("name")}**",
+                              "inline": True
+                            }
+                          ],
+                          "footer": {
+                            "text": "Episode Release Notification"
+                          },
+                          "timestamp": f"{episode.get("airstamp")}",
+                          "thumbnail": {
+                            "url": "https://image.tmdb.org/t/p/w780/iJQfixW818LUdSXlCDL3JZm0S0g.jpg"
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+    
+    
+                requests.post(DISCORD_URL, json=discord_msg)
+                return jsonify({"success": "true", "message": "check_movie notification send successfully"}), 200
+                
+    
     requests.post(DISCORD_URL, json={"content": f"{body}"})
     return jsonify({"success": "true", "message": "check_movie notification send successfully"}), 200
 
@@ -361,4 +402,4 @@ def check_tv():
 
         return jsonify({"success": "true", "message": "check_tv notification successfully"}), 200
     except Exception as e:
-        return jsonify({"error": "Bad Gateway", "message": f"Server error: {e}"}), 502  
+        return jsonify({"error": "Bad Gateway", "message": f"Server error: {e}"}), 502
