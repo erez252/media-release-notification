@@ -320,7 +320,7 @@ def send_tv_notification():
                           },
                           "timestamp": f"{episode.get("airstamp")}",
                           "thumbnail": {
-                            "url": "https://image.tmdb.org/t/p/w780/iJQfixW818LUdSXlCDL3JZm0S0g.jpg"
+                            "url": f"https://image.tmdb.org/t/p/w780{episode.get("poster_path")}"
                           }
                         }
                       ],
