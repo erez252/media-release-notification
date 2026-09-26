@@ -281,3 +281,12 @@ def check_movie():
     except Exception as e:
         return jsonify({"error": "Bad Gateway", "message": f"Server error: {e}"}), 502
         
+@app.route('/api/notification/tv', methods=['POST'])
+def send_tv_notification():
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    body = request.get_json() or {}
+    requests.post(DISCORD_URL, json={"content": f"{body}"})
+    
