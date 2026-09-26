@@ -3,7 +3,7 @@ import json
 import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 app = Flask(__name__)
 CORS(app)  # Handles CORS preflight headers automatically
@@ -12,8 +12,11 @@ UPSTASH_REDIS_REST_URL = os.environ.get('UPSTASH_REDIS_REST_URL')
 UPSTASH_REDIS_REST_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
 TMDB_API_KEY = os.environ.get('TMDB_API_KEY')
 DISCORD_URL = os.environ.get('DISCORD_URL')
+QSTASH_TOKEN = os.environ.get('QSTASH_TOKEN')
+QSTASH_URL = os.environ.get('QSTASH_URL')
 
 headers = {"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"}
+qstash_header= {"Authorization": f"Bearer {QSTASH_TOKEN}"}
 
 def is_authorized(body):
     user_password = body.get("password")
@@ -290,3 +293,72 @@ def send_tv_notification():
     body = request.get_json() or {}
     requests.post(DISCORD_URL, json={"content": f"{body}"})
     return jsonify({"success": "true", "message": "check_movie notification send successfully"}), 200
+
+
+@app.route('/api/checker/tv', methods=['POST'])
+def check_tv():
+    try:
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+            return jsonify({'error': 'Unauthorized'}), 401
+
+
+
+
+        db_data = get_db_data()
+        new_episodes_all = []
+        request_tvmaze = 10
+        for show in db_data:
+            if show.get("media_type") == "tv" and show.get("tvmaze_id") and show.get("status") != "Ended" and (not show.get("last_checked") or datetime.fromisoformat(show.get("last_checked")).date() < datetime.now(timezone.utc).date()):
+
+                if not request_tvmaze:
+                    break
+                
+                response = requests.get(f"https://api.tvmaze.com/shows/{show.get('tvmaze_id')}/episodes")
+                show["last_checked"] = datetime.now(timezone.utc).isoformat()
+                request_tvmaze -= 1
+                tvmaze_data = response.json() or {}
+                new_episodes = []
+                for ep in tvmaze_data:
+                    if  datetime.fromisoformat(ep.get("airstamp")).astimezone(timezone.utc).date() == (datetime.now(timezone.utc).date() + timedelta(days=1)):
+                        new_episodes.append({'show_name': show.get('title'), 'season': ep.get('season'), 'episode': ep.get('number'), 'airstamp': ep.get("airstamp"), 'airtime': ep.get('airtime'), 'type': ep.get("type", ""), 'name': ep.get("name", "")})
+                if new_episodes:        
+                    new_episodes_all.append(new_episodes)
+        update_db(db_data)
+
+        new_episodes_summery_all = []
+        for show in new_episodes_all:
+            grouped_by_date = {}
+            for ep in show:
+                date = ep["airstamp"]
+                if not date in grouped_by_date:
+                    grouped_by_date[date] = []
+                grouped_by_date[date].append(ep)
+                show_summary = []
+                for date, eps in grouped_by_date.items():
+                    show_summary.append({
+                        "airstamp": date,
+                        "episodes": eps
+                    })
+            new_episodes_summery_all.append(show_summary)
+
+        target_url = "https://media-release-notification.vercel.app/api/notification/tv"
+        for show in new_episodes_summery_all:
+            for timesteps in show:
+                target_time = datetime.fromisoformat(timesteps["airstamp"])
+                now = datetime.now(timezone.utc)
+                time_remaining = target_time - now
+                seconds_left = int(time_remaining.total_seconds())
+                qstash_task_header= {
+                    "Authorization": f"Bearer {QSTASH_TOKEN}",
+                    "Content-Type": "application/json",
+                    "Upstash-Delay": f"{seconds_left}s",
+                    "Upstash-Forward-Authorization": f"Bearer {os.environ.get('PASSWORD')}"
+                }
+                qstash_publish_endpoint = f"{QSTASH_URL}/publish/{target_url}"
+                qstash_task_payload = timesteps["episodes"]
+                response = requests.post(qstash_publish_endpoint, headers=qstash_task_header, json=qstash_task_payload)
+
+        return jsonify({"success": "true", "message": "check_tv notification successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": "Bad Gateway", "message": f"Server error: {e}"}), 502  
