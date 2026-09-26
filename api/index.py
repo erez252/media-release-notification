@@ -362,7 +362,7 @@ def check_tv():
                 new_episodes = []
                 for ep in tvmaze_data:
                     if  datetime.fromisoformat(ep.get("airstamp")).astimezone(timezone.utc).date() == (datetime.now(timezone.utc).date() + timedelta(days=1)):
-                        new_episodes.append({'show_name': show.get('title'), 'season': ep.get('season'), 'episode': ep.get('number'), 'airstamp': ep.get("airstamp"), 'airtime': ep.get('airtime'), 'type': ep.get("type", ""), 'name': ep.get("name", ""), 'poster_path': ep.get("poster_path", "")})
+                        new_episodes.append({'show_name': show.get('title'), 'season': ep.get('season'), 'episode': ep.get('number'), 'airstamp': ep.get("airstamp"), 'airtime': ep.get('airtime'), 'type': ep.get("type", ""), 'name': ep.get("name", ""), 'poster_path': show.get("poster_path", "")})
                 if new_episodes:        
                     new_episodes_all.append(new_episodes)
         update_db(db_data)
