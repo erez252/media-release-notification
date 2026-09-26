@@ -29,6 +29,25 @@ def get_db_data():
 def update_db(new_data):
     requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["SET", "watchlist", json.dumps(new_data)])    
 
+def check_if_digital(id):
+    response = requests.get(f"https://api.themoviedb.org/3/movie/{id}/release_dates?api_key={TMDB_API_KEY}")
+    data = response.json()
+    now = datetime.now(timezone.utc)
+    results = data.get('results' , [])
+    if not results:
+        return False
+    for country in results:
+        if country.get('release_dates', []):
+            for dates in country['release_dates']:
+                if dates['type'] >= 4:
+                    result_date = datetime.fromisoformat(dates['release_date'])
+                    seconds = int(result_date.timestamp())
+                    if seconds - now.timestamp() <= 0:
+                        return True
+                    
+    return False
+
+
 @app.route('/api/get-data', methods=['POST'])
 def get_watchlist():
     body = request.get_json() or {}
@@ -97,14 +116,16 @@ def add_item():
         if movie_response.status_code == 404:
             return jsonify({"error": "No results"}), 404
 
-        justwatch_data_url = f"https://api.themoviedb.org/3/{media_type}/{media_id}/watch/providers?api_key={TMDB_API_KEY}"
-        response = requests.get(justwatch_data_url)
-        digital = False
-        watch_data = {}
-        if response.status_code == 200:
-                watch_data = response.json()
-        if watch_data.get("results", []):
-            digital = True
+        # justwatch_data_url = f"https://api.themoviedb.org/3/{media_type}/{media_id}/watch/providers?api_key={TMDB_API_KEY}"
+        # response = requests.get(justwatch_data_url)
+        # digital = False
+        # watch_data = {}
+        # if response.status_code == 200:
+        #         watch_data = response.json()
+        # if watch_data.get("results", []):
+        #     digital = True
+            
+        digital = check_if_digital(media_id)
             
             
         
@@ -242,16 +263,13 @@ def check_movie():
         db_data = get_db_data()
         needs_update = []
         for item in db_data:
-                justwatch_data = {}
+
                 if item.get("media_type") == "movie" and not item.get("digital"):
 
-                    response = requests.get(f"https://api.themoviedb.org/3/{item.get('media_type')}/{item.get('id')}/watch/providers?api_key={TMDB_API_KEY}", timeout=5)
-                    if response.status_code == 200:
-                        justwatch_data = response.json()
-                    elif response.status_code == 429:
-                        break
 
-                    if justwatch_data.get("results", []):
+                    is_digital = check_if_digital(item.get('media_type'))
+                    
+                    if is_digital:
                         item["digital"] = True
                         needs_update.append({"title": item.get('title')})
         if needs_update:
