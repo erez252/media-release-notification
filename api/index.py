@@ -289,4 +289,4 @@ def send_tv_notification():
     
     body = request.get_json() or {}
     requests.post(DISCORD_URL, json={"content": f"{body}"})
-    
+    return jsonify({"success": "true", "message": "check_movie notification send successfully"}), 200
