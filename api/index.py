@@ -267,7 +267,7 @@ def check_movie():
                 if item.get("media_type") == "movie" and not item.get("digital"):
 
 
-                    is_digital = check_if_digital(item.get('media_type'))
+                    is_digital = check_if_digital(item.get('id'))
                     
                     if is_digital:
                         item["digital"] = True
