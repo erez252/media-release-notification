@@ -258,7 +258,7 @@ def search_tmdb():
 @app.route('/api/checker/movie', methods=['POST'])
 def check_movie():
     try:
-
+        limit = 20
         auth_header = request.headers.get("authorization", "")
         if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
             return jsonify({'error': 'Unauthorized'}), 401
@@ -267,16 +267,16 @@ def check_movie():
         needs_update = []
         for item in db_data:
 
-                if item.get("media_type") == "movie" and not item.get("digital"):
-
+                if limit and item.get("media_type") == "movie" and not item.get("digital") and (not item.get("last_checked") or datetime.fromisoformat(item.get("last_checked")) < datetime.now(timezone.utc) - timedelta(hours=8)):
+                    item["last_checked"] = datetime.now(timezone.utc).isoformat()
+                    
 
                     is_digital = check_if_digital(item.get('id'))
-                    
+                    limit -= 1
                     if is_digital:
                         item["digital"] = True
                         needs_update.append(item)
         if needs_update:
-            requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["SET", "watchlist", json.dumps(db_data)])
             for movie in needs_update:
                 
                 # get genres
@@ -321,10 +321,11 @@ def check_movie():
                 }
                 
                 requests.post(DISCORD_URL, json=discord_msg)
-
+        update_db(db_data)
         return jsonify({"success": "true", "message": "check_movie checked successfully"}), 200
     except Exception as e:
         return jsonify({"error": "Bad Gateway", "message": f"Server error: {e}"}), 502
+        
         
 @app.route('/api/notification/tv', methods=['POST'])
 def send_tv_notification():
@@ -532,3 +533,76 @@ def check_tv():
         return jsonify({"success": "true", "message": "check_tv notification successfully"}), 200
     except Exception as e:
         return jsonify({"error": "Bad Gateway", "message": f"Server error: {e}"}), 502
+    
+@app.route('/api/updater', methods=['POST'])
+def updater():
+    
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    db_data = get_db_data()
+    limit = 20
+    for item in db_data:
+        
+        if not limit:
+            break
+        
+        
+        if (not item.get('last_updated')) or datetime.fromisoformat(item.get('last_updated')).date() != datetime.now(timezone.utc).date():
+            
+            response = requests.get(f"https://api.themoviedb.org/3/{item['media_type']}/{item['id']}?api_key={TMDB_API_KEY}")
+            data = response.json()
+            limit -= 1
+            if item.get('media_type', "") == "movie":
+                if item.get('title', "") !=  data.get('title', ""):
+                    item['title'] = data.get('title', "")
+    
+            else:
+                if item.get('title', "") !=  data.get('name', ""):
+                    item['title'] = data.get('name', "")
+      
+                
+            if item.get('poster_path', "") !=  data.get('poster_path', ""):
+                item['poster_path'] = data.get('poster_path', "")
+
+                
+            if item.get('overview', "") !=  data.get('overview', ""):
+                item['overview'] = data.get('overview', "")
+
+
+            if item.get('runtime', "") !=  data.get('runtime', ""):
+                item['runtime'] = data.get('runtime', "")
+
+                
+            if item.get('status', "") !=  data.get('status', ""):
+                item['status'] = data.get('status', "")
+
+                
+            if item.get('genres', "") !=  data.get('genres', ""):
+                item['genres'] = data.get('genres', "")
+
+                
+            if item.get('release_date', "") !=  data.get('release_date', ""):
+                item['release_date'] = data.get('release_date', "")
+
+                
+                
+            if item.get('first_air_date', "") !=  data.get('first_air_date', ""):
+                item['first_air_date'] = data.get('first_air_date', "")
+
+                
+            if item.get('last_air_date', "") !=  data.get('last_air_date', ""):
+                item['last_air_date'] = data.get('last_air_date', "")
+
+
+            item['last_updated'] = datetime.now(timezone.utc).isoformat()
+                
+            
+    
+    update_db(db_data)
+    return jsonify({"success": "true", "message": "Updated the media"}), 200
+    
+    
+            
+    
