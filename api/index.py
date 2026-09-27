@@ -55,9 +55,10 @@ def send_movie_notification(item, time):
     db_data = get_db_data()
     for media in db_data:
         if str(media['id']) == str(item['id']) and media['media_type'] == item['media_type']:
-            media["digital"] = True
+            media['digital'] = True
+            update_db(db_data)
             break
-    update_db(db_data)
+    
             
     genres = []
     for genre in item.get('genres', []):
