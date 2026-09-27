@@ -295,12 +295,12 @@ def check_movie():
                       "fields": [
                         {
                           "name": "Release Date",
-                          "value": f"`{movie.get('"release_date')}`",
+                          "value": f"`{movie.get('release_date')}`",
                           "inline": True
                         },
                         {
                           "name": "Runtime",
-                          "value": f"`{movie.get('"runtime')}`",
+                          "value": f"`{movie.get('runtime')}`",
                           "inline": True
                         },
                         {
