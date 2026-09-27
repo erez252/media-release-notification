@@ -274,11 +274,53 @@ def check_movie():
                     
                     if is_digital:
                         item["digital"] = True
-                        needs_update.append({"title": item.get('title')})
+                        needs_update.append(item)
         if needs_update:
             requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["SET", "watchlist", json.dumps(db_data)])
             for movie in needs_update:
-                requests.post(DISCORD_URL, json={"content": f"{movie.get('title')} is now available to watch"})
+                
+                # get genres
+                genres = []
+                for genre in movie.get('genres', []):
+                    genres.append(genre["name"])
+                    
+                # discord msg
+                discord_msg = {
+                  "content": "🎥 **New Movie Digital Release!**",
+                  "embeds": [
+                    {
+                      "title": movie.get('title'),
+                      "description": "Now available to stream.",
+                      "color": 10038562,
+                      "fields": [
+                        {
+                          "name": "Release Date",
+                          "value": f"`{movie.get('"release_date')}`",
+                          "inline": True
+                        },
+                        {
+                          "name": "Runtime",
+                          "value": f"`{movie.get('"runtime')}`",
+                          "inline": True
+                        },
+                        {
+                          "name": "Genres",
+                          "value": f"{', '.join(genres)}",
+                          "inline": False
+                        }
+                      ],
+                      "image": {
+                        "url": f"https://image.tmdb.org/t/p/w780{movie.get("poster_path")}"
+                      },
+                      "footer": {
+                        "text": "Movie Release Notification"
+                      },
+                      "timestamp": f"{datetime.now().isoformat()}"
+                    }
+                  ]
+                }
+                
+                requests.post(DISCORD_URL, json=discord_msg)
 
         return jsonify({"success": "true", "message": "check_movie checked successfully"}), 200
     except Exception as e:
