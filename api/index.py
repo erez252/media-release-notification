@@ -57,7 +57,7 @@ def send_movie_notification(item, time):
 
 
     for media in db_data:
-        if media['id'] == item['id']:
+        if media['id'] == item['id'] and media['media_type'] == item['media_type']:
             media["digital"] = True
             break
         
