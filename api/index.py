@@ -50,7 +50,68 @@ def check_if_digital(id):
                     
     return False
 
+def send_movie_notification(item, time):
+    
+    genres = []
+    for genre in item.get('genres', []):
+        genres.append(genre["name"])
+    
+    discord_msg = {
+          "content": "🎥 **New Movie Digital Release!**",
+          "embeds": [
+            {
+              "title": item.get('title'),
+              "description": "Now available to stream.",
+              "color": 10038562,
+              "fields": [
+                {
+                  "name": "Release Date",
+                  "value": f"`{item.get('release_date')}`",
+                  "inline": True
+                },
+                {
+                  "name": "Runtime",
+                  "value": f"`{item.get('runtime')}`",
+                  "inline": True
+                },
+                {
+                  "name": "Genres",
+                  "value": f"{', '.join(genres)}",
+                  "inline": False
+                }
+              ],
+              "image": {
+                "url": f"https://image.tmdb.org/t/p/w780{item.get("poster_path")}"
+              },
+              "footer": {
+                "text": "Movie Release Notification"
+              },
+              "timestamp": time
+            }
+          ]
+        }
+    
+    requests.post(DISCORD_URL, json=discord_msg)
+    
+    
+def send_to_qstush_movie(seconds_left, body):
+    
+    target_url = "https://media-release-notification.vercel.app/api/notification/movie"
+    qstash_task_header= {
+        "Authorization": f"Bearer {QSTASH_TOKEN}",
+        "Content-Type": "application/json",
+        "Upstash-Delay": f"{seconds_left}s",
+        "Upstash-Forward-Authorization": f"Bearer {os.environ.get('PASSWORD')}"
+    }
+    qstash_publish_endpoint = f"{QSTASH_URL}/publish/{target_url}"
+    qstash_task_payload = body
+    
+    response = requests.post(qstash_publish_endpoint, headers=qstash_task_header, json=qstash_task_payload)
 
+    
+    
+    
+    
 @app.route('/api/get-data', methods=['POST'])
 def get_watchlist():
     body = request.get_json() or {}
@@ -257,6 +318,64 @@ def search_tmdb():
 
 @app.route('/api/checker/movie', methods=['POST'])
 def check_movie():
+    
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    try:
+        limit = 20
+        db_data = get_db_data()
+        for item in db_data:
+            if limit and not item.get("notification_soon", "") and item.get("media_type") == "movie" and not item.get("digital") and (not item.get("last_checked") or datetime.fromisoformat(item.get("last_checked")).date() != datetime.now(timezone.utc).date()):
+                
+                response = requests.get(f"https://api.themoviedb.org/3/movie/{item['id']}/release_dates?api_key={TMDB_API_KEY}")
+                data = response.json()
+                
+                limit -= 1
+                item["last_checked"] = datetime.now(timezone.utc).isoformat()
+                
+                results = data.get('results' , [])
+                
+                if not results:
+                    continue
+                
+                tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
+                movie_notification_now = False
+                sec_until_notification = 0
+                for country in results:
+                    if country.get('release_dates', []):
+                        for dates in country['release_dates']:
+                            if dates['type'] >= 4 and datetime.fromisoformat(dates['release_date']).date() <= datetime.now(timezone.utc).date():
+                                movie_notification_now = dates['release_date']                            
+                            elif dates['type'] >= 4 and datetime.fromisoformat(dates['release_date']).date() == tomorrow:
+                                target_time = datetime.fromisoformat(dates['release_date'])
+                                now = datetime.now(timezone.utc)
+                                time_remaining = target_time - now
+                                seconds_left = int(time_remaining.total_seconds())
+                                sec_until_notification = seconds_left
+                
+                
+                
+                if sec_until_notification:
+                    item["notification_soon"] = True
+                    body = {
+                                'daley': sec_until_notification,
+                                'show_info': item
+                            } 
+                    send_to_qstush_movie(sec_until_notification, body)
+                if movie_notification_now:
+                        send_movie_notification(item, dates['release_date'])
+                    
+
+                    
+        update_db(db_data)
+        return jsonify({"success": "true", "message": "check_movie checked successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": "Bad Gateway", "message": f"Server error: {e}"}), 502
+                
+
+def check_movie_old():
     try:
         limit = 20
         auth_header = request.headers.get("authorization", "")
