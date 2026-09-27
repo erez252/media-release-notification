@@ -371,6 +371,7 @@ def check_movie():
                             } 
                     send_to_qstush_movie(sec_until_notification, body)
                 if movie_notification_now:
+                        item['digital'] = True
                         send_movie_notification(item, dates['release_date'])
                     
 
