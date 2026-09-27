@@ -53,12 +53,13 @@ def check_if_digital(id):
 def send_movie_notification(item, time):
     
     db_data = get_db_data()
+    id_test = "no"
     for media in db_data:
         if str(media['id']) == str(item['id']) and media['media_type'] == item['media_type']:
             media['digital'] = True
-            update_db(db_data)
+            id_test = media['id']
             break
-    
+    update_db(db_data)
             
     genres = []
     for genre in item.get('genres', []):
@@ -69,7 +70,7 @@ def send_movie_notification(item, time):
           "embeds": [
             {
               "title": item.get('title'),
-              "description": "Now available to stream.",
+              "description": f"Now available to stream. {id_test} {item['id']}",
               "color": 10038562,
               "fields": [
                 {
