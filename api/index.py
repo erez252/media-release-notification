@@ -52,6 +52,17 @@ def check_if_digital(id):
 
 def send_movie_notification(item, time):
     
+    db_data = get_db_data()
+    
+
+
+    for media in db_data:
+        if media['id'] == item['id']:
+            media["digital"] = True
+            break
+        
+    update_db(db_data)
+            
     genres = []
     for genre in item.get('genres', []):
         genres.append(genre["name"])
