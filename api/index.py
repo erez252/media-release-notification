@@ -346,7 +346,7 @@ def check_movie():
                 if not results:
                     continue
                 
-                tomorrow = datetime.now(timezone.utc).date() + timedelta(days=2)
+                tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
                 movie_notification_now = False
                 sec_until_notification = 0
                 for country in results:
