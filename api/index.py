@@ -608,6 +608,8 @@ def prepper_to_send_movie_notification():
     
     send_movie_notification(movie, time)
     
+    return jsonify({"success": "true", "message": "movie notification send successfully"}), 200
+
     
 
 
