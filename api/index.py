@@ -52,11 +52,7 @@ def check_if_digital(id):
 
 def send_movie_notification(item, time):
     
-    db_data = get_db_data()
-    for media in db_data:
-        if str(media['id']) == str(item['id']) and media['media_type'] == item['media_type']:
-            media['digital'] = True
-    update_db(db_data)
+
             
     genres = []
     for genre in item.get('genres', []):
@@ -590,6 +586,29 @@ def send_tv_notification():
     
     requests.post(DISCORD_URL, json=discord_msg)
     return jsonify({"success": "true", "message": "tv notification send successfully"}), 200
+
+@app.route('/api/notification/movie', methods=['POST'])
+def prepper_to_send_movie_notification():
+    
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+        return jsonify({'error': 'Unauthorized'}), 401
+   
+    body = request.get_json() or {}
+    
+    movie = body['show_info']
+    
+    time = datetime.now(timezone.utc).isoformat()
+    
+    db_data = get_db_data()
+    for media in db_data:
+        if str(media['id']) == str(movie['id']) and media['media_type'] == movie['media_type']:
+            media['digital'] = True
+    update_db(db_data)
+    
+    send_movie_notification(movie, time)
+    
+    
 
 
 @app.route('/api/checker/tv', methods=['POST'])
