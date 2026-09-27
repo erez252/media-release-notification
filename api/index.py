@@ -296,37 +296,41 @@ def send_tv_notification():
             episode = body[0]
             if episode.get("name") and episode.get("name") != "TBA":
                 
+
                 discord_msg = {
-                      "content": "🎬 **New Episode Released!**",
-                      "embeds": [
+                  "content": "🎬 **New Episode Released!**",
+                  "embeds": [
+                    {
+                      "title": episode.get("show_name"),
+                      "description": "A new episode is now streaming.",
+                      "color": 15844367,
+                      "fields": [
                         {
-                          "title": episode.get("show_name"),
-                          "description": "A new episode is now streaming.",
-                          "color": 15844367,
-                          "fields": [
-                            {
-                              "name": "Episode",
-                              "value": f"`S{episode.get("season")}E{episode.get("episode")}`",
-                              "inline": True
-                            },
-                            {
-                              "name": "Title",
-                              "value": f"**{episode.get("name")}**",
-                              "inline": True
-                            }
-                          ],
-                          "footer": {
-                            "text": "Episode Release Notification"
-                          },
-                          "timestamp": f"{episode.get("airstamp")}",
-                          "thumbnail": {
-                            "url": f"https://image.tmdb.org/t/p/w780{episode.get("poster_path")}"
-                          }
+                          "name": "Season",
+                          "value": f"`Season {episode.get("season")}`",
+                          "inline": True
+                        },
+                        {
+                          "name": "Episode",
+                          "value": f"`Episode {episode.get("episode")}`",
+                          "inline": True
+                        },
+                        {
+                          "name": "Episode Title",
+                          "value": f"**{episode.get("name")}**",
+                          "inline": False
                         }
                       ],
-                      "attachments": []
+                      "thumbnail": {
+                        "url": f"https://image.tmdb.org/t/p/w780{episode.get("poster_path")}"
+                      },
+                      "footer": {
+                        "text": "Episode Release Notification"
+                      },
+                      "timestamp": f"{episode.get("airstamp")}"
                     }
-    
+                  ]
+                }
     
                 requests.post(DISCORD_URL, json=discord_msg)
                 return jsonify({"success": "true", "message": "check_movie notification send successfully"}), 200
