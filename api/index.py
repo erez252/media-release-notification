@@ -242,6 +242,7 @@ def get_game_by_id(id):
             'popularity': game.get("hype", 0),
             "vote_average": vote_average,
             "vote_count": game.get("rating_count", 0),
+            "Added_date": datetime.now(timezone.utc).isoformat()
         }
     return(custom_data)
     
@@ -271,7 +272,7 @@ def remove_item ():
     movie_type = body.get("movieType")
     if movie_type and movie_id and type(movie_id) is int:
         match = False
-        db_data = get_db_data()
+        db_data = get_db_data_v2()
         for movie in db_data:
             if movie.get("media_type") == movie_type and movie.get("id") == movie_id:
                 db_data.remove(movie)
@@ -303,7 +304,7 @@ def add_item():
             return jsonify({"error": "Bad Request", "message": "One or more missing required parameters"}), 400
 
 
-        db_data = get_db_data()
+        db_data = get_db_data_v2()
         for item in db_data:
             if item.get("media_type") == media_type and item.get("id") == media_id:
                 return jsonify({"error": "Unprocessable Entity", "message": "Cannot add item because it is already exists."}), 422
@@ -390,7 +391,7 @@ def add_item():
                     
                     
             now_iso = datetime.now(timezone.utc).isoformat()
-            movie_data["last_notification"] = now_iso
+            movie_data["Added_date"] = now_iso
               
         
         db_data.append(movie_data)
@@ -470,7 +471,7 @@ def check_movie():
     
     try:
         limit = 20
-        db_data = get_db_data()
+        db_data = get_db_data_v2()
         for item in db_data:
             if limit and not item.get("notification_soon", "") and item.get("media_type") == "movie" and not item.get("digital") and (not item.get("last_checked") or datetime.fromisoformat(item.get("last_checked")).date() != datetime.now(timezone.utc).date()):
                 
@@ -528,7 +529,7 @@ def check_movie_old():
         if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
             return jsonify({'error': 'Unauthorized'}), 401
         
-        db_data = get_db_data()
+        db_data = get_db_data_v2()
         needs_update = []
         for item in db_data:
 
@@ -743,7 +744,7 @@ def prepper_to_send_movie_notification():
     
     time = datetime.now(timezone.utc).isoformat()
     
-    db_data = get_db_data()
+    db_data = get_db_data_v2()
     for media in db_data:
         if str(media['id']) == str(movie['id']) and media['media_type'] == movie['media_type']:
             media['digital'] = True
@@ -766,7 +767,7 @@ def check_tv():
 
 
 
-        db_data = get_db_data()
+        db_data = get_db_data_v2()
         new_episodes_all = []
         request_tvmaze = 10
         for show in db_data:
@@ -831,7 +832,7 @@ def updater():
     if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
         return jsonify({'error': 'Unauthorized'}), 401
     
-    db_data = get_db_data()
+    db_data = get_db_data_v2()
     limit = 20
     for item in db_data:
         if not limit:
