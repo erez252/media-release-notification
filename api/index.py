@@ -159,7 +159,63 @@ def get_game_results(query):
     
     return custom_data    
     
+def get_game_by_id(id):
     
+    headers = {
+        "Content-Type": "application/json",
+        'Client-ID': IGDB_CLIENT_ID,
+        'Authorization': f"Bearer {IGDB_ACCESS_TOKEN}"
+    }
+    
+    fields = "name,cover.image_id,first_release_date,game_type,game_status,genres.name,hypes,summary,first_release_date,rating,rating_count"
+    
+    response = requests.post(f"https://api.igdb.com/v4/games" ,headers=headers, data=f'fields {fields}; where id = {id};')
+    
+    if not response.json():
+        return False
+    
+    game = response.json()[0]
+    # print(game)
+    
+    # hendle time and if digital
+    timestamp_raw = game.get("first_release_date")
+    release_date = ""
+    digital = False
+    if timestamp_raw is not None:
+        original_release_date = float(timestamp_raw)
+        release_date = datetime.fromtimestamp(original_release_date, timezone.utc).date().isoformat()
+        
+        if datetime.fromtimestamp(original_release_date, timezone.utc) <= datetime.now(timezone.utc):
+            digital = True
+
+    status = "Upcoming"
+    if digital:
+        status = "Released"
+    
+    cover = game.get("cover")
+    poster_path = cover.get("image_id", "") if cover else ""
+    
+    vote_average = game.get("rating", 0)
+    if vote_average:
+        vote_average = vote_average / 10
+        
+    custom_data = {
+            'id': game.get("id", ""),
+            "title": game.get("name", ""),
+            "poster_path": poster_path,
+            "overview": game.get("summary", ""),
+            "runtime": "",
+            "status": status,
+            "genres": game.get("genres", []),
+            "media_type": "game",
+            "last_notification": None,
+            "digital": digital,
+            "release_date": release_date,
+            'popularity': game.get("hype", 0),
+            "vote_average": vote_average,
+            "vote_count": game.get("rating_count", 0),
+        }
+    return(custom_data)
     
 @app.route('/api/get-data', methods=['POST'])
 def get_watchlist():
@@ -215,7 +271,7 @@ def add_item():
         media_type = body.get("mediaType")
         if media_id and str(media_id).isdigit():
             media_id = int(media_id)
-        if not media_id or not str(media_id).isdigit() or not (media_type == "tv" or media_type == "movie"):
+        if not media_id or not str(media_id).isdigit() or not (media_type == "tv" or media_type == "movie" or media_type == "game"):
             return jsonify({"error": "Bad Request", "message": "One or more missing required parameters"}), 400
 
 
@@ -223,6 +279,13 @@ def add_item():
         for item in db_data:
             if item.get("media_type") == media_type and item.get("id") == media_id:
                 return jsonify({"error": "Unprocessable Entity", "message": "Cannot add item because it is already exists."}), 422
+            
+        if media_type == "game":
+            game = get_game_by_id(media_id)
+            db_data.append(game)
+            update_db(db_data)
+            return jsonify({"success": "true", "message": "Added the media"}), 200
+
 
 
         movie_response = requests.get(f"https://api.themoviedb.org/3/{media_type}/{media_id}?api_key={TMDB_API_KEY}")
