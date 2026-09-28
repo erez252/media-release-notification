@@ -396,10 +396,10 @@ def add_item():
         db_data.append(movie_data)
         update_db(db_data)
         # response = requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["SET", "watchlist", json.dumps(db_data)])
-        if response.status_code == 200:
-            return jsonify({"success": "true", "message": "Added the media"}), 200
+        return jsonify({"success": "true", "message": "Added the media"}), 200
+        # if response.status_code == 200:
 
-        return jsonify({"error": "something went wrong", "message": "something went wrong while adding the media"}), 500
+        # return jsonify({"error": "something went wrong", "message": "something went wrong while adding the media"}), 500
     except (TypeError, requests.exceptions.RequestException):
         return jsonify({"error": "something went wrong", "message": "something went wrong while adding the media"}), 500
 
