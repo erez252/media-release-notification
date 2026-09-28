@@ -242,7 +242,7 @@ def get_game_by_id(id):
             'popularity': game.get("hype", 0),
             "vote_average": vote_average,
             "vote_count": game.get("rating_count", 0),
-            "Added_date": datetime.now(timezone.utc).isoformat()
+            "added_date": datetime.now(timezone.utc).isoformat()
         }
     return(custom_data)
     
@@ -270,20 +270,30 @@ def remove_item ():
     if movie_id and str(movie_id).isdigit():
         movie_id = int(movie_id)
     movie_type = body.get("movieType")
-    if movie_type and movie_id and type(movie_id) is int:
-        match = False
-        db_data = get_db_data_v2()
-        for movie in db_data:
-            if movie.get("media_type") == movie_type and movie.get("id") == movie_id:
-                db_data.remove(movie)
-                match = True
-                break
-        if not match:
-            return jsonify({"error": "Unprocessable Entity", "message": "Cannot delete item because it does not exist."}), 422
-        update_db(db_data)
-        return jsonify({"message": f"Removed item with an id of {movie_id}"}), 200
-    else:
-        return jsonify({"error": "Bad Request", "message": "One or more missing required parameters"}), 400
+
+    
+    field = f"{movie_type}:{movie_id}"
+    requests.post(
+    UPSTASH_REDIS_REST_URL,
+        headers=headers,
+        json=["HDEL", "Watchlist-V2", field]
+    )
+    
+    
+    # if movie_type and movie_id and type(movie_id) is int:
+    #     match = False
+    #     db_data = get_db_data_v2()
+    #     for movie in db_data:
+    #         if movie.get("media_type") == movie_type and movie.get("id") == movie_id:
+    #             db_data.remove(movie)
+    #             match = True
+    #             break
+    #     if not match:
+    #         return jsonify({"error": "Unprocessable Entity", "message": "Cannot delete item because it does not exist."}), 422
+    #     update_db(db_data)
+    #     return jsonify({"message": f"Removed item with an id of {movie_id}"}), 200
+    # else:
+    #     return jsonify({"error": "Bad Request", "message": "One or more missing required parameters"}), 400
 
 
 @app.route('/api/add', methods=['POST'])
@@ -390,8 +400,8 @@ def add_item():
                     
                     
                     
-            now_iso = datetime.now(timezone.utc).isoformat()
-            movie_data["Added_date"] = now_iso
+        now_iso = datetime.now(timezone.utc).isoformat()
+        movie_data["added_date"] = now_iso
               
         
         db_data.append(movie_data)
