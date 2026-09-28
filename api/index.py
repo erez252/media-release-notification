@@ -278,7 +278,8 @@ def remove_item ():
         headers=headers,
         json=["HDEL", "Watchlist-V2", field]
     )
-    
+    return jsonify({"message": f"Removed item with an id of {movie_id}"}), 200
+
     
     # if movie_type and movie_id and type(movie_id) is int:
     #     match = False
