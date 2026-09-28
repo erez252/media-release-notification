@@ -4,7 +4,6 @@ import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime, timezone, timedelta
-
 app = Flask(__name__)
 CORS(app)  # Handles CORS preflight headers automatically
 
@@ -14,6 +13,8 @@ TMDB_API_KEY = os.environ.get('TMDB_API_KEY')
 DISCORD_URL = os.environ.get('DISCORD_URL')
 QSTASH_TOKEN = os.environ.get('QSTASH_TOKEN')
 QSTASH_URL = os.environ.get('QSTASH_URL')
+IGDB_CLIENT_ID = os.environ.get('IGDB_CLIENT_ID')
+IGDB_ACCESS_TOKEN = os.environ.get('IGDB_ACCESS_TOKEN')
 
 headers = {"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"}
 qstash_header= {"Authorization": f"Bearer {QSTASH_TOKEN}"}
@@ -110,7 +111,53 @@ def send_to_qstush_movie(seconds_left, body):
     
     response = requests.post(qstash_publish_endpoint, headers=qstash_task_header, json=qstash_task_payload)
 
+def get_game_results(query):
     
+    headers = {
+        "Content-Type": "application/json",
+        'Client-ID': IGDB_CLIENT_ID,
+        'Authorization': f"Bearer {IGDB_ACCESS_TOKEN}"
+    }
+    
+    fields = "name,cover.image_id,first_release_date,game_type,game_status.status,genres.name,hypes,summary,first_release_date,rating,rating_count"
+    filters = "themes != (42) & game_type = (0, 8, 9, 10)"
+    
+    response = requests.post(f"https://api.igdb.com/v4/games" ,headers=headers, data=f'fields {fields}; where {filters}; search "{query}";')
+    if response.status_code != 200:
+        return []
+    
+    games = response.json()
+    custom_data = []
+    for game in games:
+        
+        timestamp_raw = game.get("first_release_date")
+        release_date = ""
+        if timestamp_raw is not None:
+            original_release_date = float(timestamp_raw)
+            release_date = datetime.fromtimestamp(original_release_date, timezone.utc).date().isoformat()
+            
+        cover = game.get("cover")
+        poster_path = cover.get("image_id", "") if cover else ""
+        
+        custom_data.append(
+            {
+                "adult": False,
+                'id': game.get("id", ""),
+                "title": game.get("name", ""),
+                "overview": game.get("summary", ""),
+                "poster_path": poster_path,
+                "media_type": "game",
+                "genres": game.get("genres", []),
+                'popularity': game.get("hype", 0),
+                "release_date": release_date,
+                "softcore": False,
+                "video": False,
+                "vote_average": game.get("rating", 0),
+                "vote_count": game.get("rating_count", 0),
+            }
+        )    
+    
+    return custom_data    
     
     
     
@@ -263,8 +310,7 @@ def add_item():
         return jsonify({"error": "something went wrong", "message": "something went wrong while adding the media"}), 500
     except (TypeError, requests.exceptions.RequestException):
         return jsonify({"error": "something went wrong", "message": "something went wrong while adding the media"}), 500
-    
- 
+
 
 @app.route('/api/tmdb/search', methods=['POST'])
 def search_tmdb():
@@ -302,7 +348,9 @@ def search_tmdb():
                 movie_results.append(item)
         
 
-        if not (movie_results or tv_results):
+        game_results = get_game_results(movie_name)
+        
+        if not (movie_results or tv_results or game_results):
             return jsonify({"error": "No results"}), 404
         
         ordered_data = {}
@@ -310,6 +358,9 @@ def search_tmdb():
             ordered_data["movie_results"] = movie_results
         if tv_results:
             ordered_data["tv_results"] = tv_results
+        if game_results:
+            ordered_data["game_results"] = game_results
+            
             
         return jsonify(ordered_data), 200
         
