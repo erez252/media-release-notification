@@ -805,12 +805,11 @@ def updater():
     db_data = get_db_data()
     limit = 20
     for item in db_data:
-        
         if not limit:
             break
         
         
-        if (not item.get('last_updated')) or datetime.fromisoformat(item.get('last_updated')).date() != datetime.now(timezone.utc).date():
+        if ((not item.get('last_updated')) or datetime.fromisoformat(item.get('last_updated')).date() != datetime.now(timezone.utc).date()) and item.get('media_type', "") != "game":
             
             response = requests.get(f"https://api.themoviedb.org/3/{item['media_type']}/{item['id']}?api_key={TMDB_API_KEY}")
             data = response.json()
