@@ -30,6 +30,20 @@ def get_db_data():
     db_data = res.json().get("result")
     return json.loads(db_data) if db_data else []
 
+def get_db_data_v2():
+    response = requests.post(
+    UPSTASH_REDIS_REST_URL,
+    headers=headers,
+    json=["HVALS", "Watchlist-V2"]
+    )
+
+    raw_list = response.json()["result"]
+
+    watchlist = [json.loads(item) for item in raw_list if item.startswith('{')]
+    
+    return watchlist
+
+    
 def update_db(new_data):
     requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["SET", "watchlist", json.dumps(new_data)])    
 
@@ -225,7 +239,7 @@ def get_watchlist():
     if not authorized:
         return jsonify({'error': 'Unauthorized'}), 401
     
-    return jsonify(get_db_data()), 200
+    return jsonify(get_db_data_v2()), 200
 
 @app.route('/api', methods=['GET'])
 def main_page():
@@ -862,7 +876,3 @@ def updater():
     
     update_db(db_data)
     return jsonify({"success": "true", "message": "Updated the media"}), 200
-    
-    
-            
-    
