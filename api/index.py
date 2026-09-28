@@ -45,7 +45,21 @@ def get_db_data_v2():
 
     
 def update_db(new_data):
-    requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["SET", "watchlist", json.dumps(new_data)])    
+    # requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["SET", "watchlist", json.dumps(new_data)])
+    payload = ["HSET", "Watchlist-V2"]
+    for item in new_data:
+        media_type = item.get("media_type")
+        item_id = item.get("id")
+        field_name = f"{media_type}:{item_id}"
+        json_value = json.dumps(item)
+        payload.append(field_name)
+        payload.append(json_value)
+        
+    requests.post(
+        UPSTASH_REDIS_REST_URL,
+        headers=headers,
+        json=payload
+    )
 
 def check_if_digital(id):
     response = requests.get(f"https://api.themoviedb.org/3/movie/{id}/release_dates?api_key={TMDB_API_KEY}")
@@ -380,7 +394,8 @@ def add_item():
               
         
         db_data.append(movie_data)
-        response = requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["SET", "watchlist", json.dumps(db_data)])
+        update_db(db_data)
+        # response = requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["SET", "watchlist", json.dumps(db_data)])
         if response.status_code == 200:
             return jsonify({"success": "true", "message": "Added the media"}), 200
 
