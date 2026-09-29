@@ -1,3 +1,4 @@
+from abc import update_abstractmethods
 import os
 import json
 import requests
@@ -25,10 +26,10 @@ def is_authorized(body):
 
 
 
-def get_db_data():
-    res = requests.get(f"{UPSTASH_REDIS_REST_URL}/get/watchlist", headers=headers)
-    db_data = res.json().get("result")
-    return json.loads(db_data) if db_data else []
+# def get_db_data():
+#     res = requests.get(f"{UPSTASH_REDIS_REST_URL}/get/watchlist", headers=headers)
+#     db_data = res.json().get("result")
+#     return json.loads(db_data) if db_data else []
 
 def get_db_data_v2():
     response = requests.post(
@@ -42,6 +43,32 @@ def get_db_data_v2():
     watchlist = [json.loads(item) for item in raw_list if item.startswith('{')]
     
     return watchlist
+
+def get_item_data_from_db(item):
+    field = f"{item.get('media_type', "")}:{item.get('id', "")}"
+    response = requests.post(
+        UPSTASH_REDIS_REST_URL,
+        headers=headers,
+        json=["HGET", "Watchlist-V2", field]
+    )
+    data = response.json().get('result', [])
+    if data:
+        data = json.loads(data)
+    
+    return(data)   
+
+def update_one_item_in_db(item):
+    field = f"{item.get('media_type')}:{item.get('id')}"
+    requests.post(
+      UPSTASH_REDIS_REST_URL,
+      headers=headers,
+      json=["HSET", "Watchlist-V2", field, json.dumps(item)]
+    )
+      
+        
+    
+    
+    
 
     
 def update_db(new_data):
@@ -755,13 +782,32 @@ def prepper_to_send_movie_notification():
     
     time = datetime.now(timezone.utc).isoformat()
     
-    db_data = get_db_data_v2()
-    for media in db_data:
-        if str(media['id']) == str(movie['id']) and media['media_type'] == movie['media_type']:
-            media['digital'] = True
-    update_db(db_data)
+
+    response = requests.get(f"https://api.themoviedb.org/3/movie/{movie['id']}/release_dates?api_key={TMDB_API_KEY}")
+    data = response.json()
+    results = data.get('results' , [])
+    movie_notification_now = False
     
-    send_movie_notification(movie, time)
+    for country in results:
+        if country.get('release_dates', []):
+            for dates in country['release_dates']:
+                if dates['type'] >= 4 and datetime.fromisoformat(dates['release_date']).date() <= datetime.now(timezone.utc).date():
+                    movie_notification_now = True
+    
+    movie['notification_soon'] = False
+    if movie_notification_now:
+        movie['digital'] = True
+        send_movie_notification(movie, time)
+
+    update_one_item_in_db(movie)
+        
+    
+    
+    
+    
+    
+    
+    
     
     return jsonify({"success": "true", "message": "movie notification send successfully"}), 200
 
