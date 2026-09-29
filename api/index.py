@@ -26,11 +26,6 @@ def is_authorized(body):
 
 
 
-# def get_db_data():
-#     res = requests.get(f"{UPSTASH_REDIS_REST_URL}/get/watchlist", headers=headers)
-#     db_data = res.json().get("result")
-#     return json.loads(db_data) if db_data else []
-
 def get_db_data_v2():
     response = requests.post(
     UPSTASH_REDIS_REST_URL,
@@ -64,12 +59,6 @@ def update_one_item_in_db(item):
       headers=headers,
       json=["HSET", "Watchlist-V2", field, json.dumps(item)]
     )
-      
-        
-    
-    
-    
-
     
 def update_db(new_data):
     # requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["SET", "watchlist", json.dumps(new_data)])
@@ -230,7 +219,6 @@ def get_game_by_id(id):
         return False
     
     game = response.json()[0]
-    # print(game)
     
     # hendle time and if digital
     timestamp_raw = game.get("first_release_date")
@@ -244,8 +232,10 @@ def get_game_by_id(id):
             digital = True
 
     status = "Upcoming"
+    released = False
     if digital:
         status = "Released"
+        released = True
     
     cover = game.get("cover")
     poster_path = cover.get("image_id", "") if cover else ""
@@ -269,7 +259,11 @@ def get_game_by_id(id):
             'popularity': game.get("hype", 0),
             "vote_average": vote_average,
             "vote_count": game.get("rating_count", 0),
-            "added_date": datetime.now(timezone.utc).isoformat()
+            "added_date": datetime.now(timezone.utc).isoformat(),
+            "released": released,
+            "notifications": True,
+            "notifications_enabled_at": datetime.now(timezone.utc).isoformat(),
+            "notified_content_ids": []
         }
     return(custom_data)
     
@@ -307,21 +301,6 @@ def remove_item ():
     )
     return jsonify({"message": f"Removed item with an id of {movie_id}"}), 200
 
-    
-    # if movie_type and movie_id and type(movie_id) is int:
-    #     match = False
-    #     db_data = get_db_data_v2()
-    #     for movie in db_data:
-    #         if movie.get("media_type") == movie_type and movie.get("id") == movie_id:
-    #             db_data.remove(movie)
-    #             match = True
-    #             break
-    #     if not match:
-    #         return jsonify({"error": "Unprocessable Entity", "message": "Cannot delete item because it does not exist."}), 422
-    #     update_db(db_data)
-    #     return jsonify({"message": f"Removed item with an id of {movie_id}"}), 200
-    # else:
-    #     return jsonify({"error": "Bad Request", "message": "One or more missing required parameters"}), 400
 
 
 @app.route('/api/add', methods=['POST'])
@@ -552,79 +531,7 @@ def check_movie():
                         item['digital'] = True
                         send_movie_notification(item, dates['release_date'])
                     
-
                     
-        update_db(db_data)
-        return jsonify({"success": "true", "message": "check_movie checked successfully"}), 200
-    except Exception as e:
-        return jsonify({"error": "Bad Gateway", "message": f"Server error: {e}"}), 502
-                
-
-def check_movie_old():
-    try:
-        limit = 20
-        auth_header = request.headers.get("authorization", "")
-        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
-            return jsonify({'error': 'Unauthorized'}), 401
-        
-        db_data = get_db_data_v2()
-        needs_update = []
-        for item in db_data:
-
-                if limit and item.get("media_type") == "movie" and not item.get("digital") and (not item.get("last_checked") or datetime.fromisoformat(item.get("last_checked")) < datetime.now(timezone.utc) - timedelta(hours=8)):
-                    item["last_checked"] = datetime.now(timezone.utc).isoformat()
-                    
-
-                    is_digital = check_if_digital(item.get('id'))
-                    limit -= 1
-                    if is_digital:
-                        item["digital"] = True
-                        needs_update.append(item)
-        if needs_update:
-            for movie in needs_update:
-                
-                # get genres
-                genres = []
-                for genre in movie.get('genres', []):
-                    genres.append(genre["name"])
-                    
-                # discord msg
-                discord_msg = {
-                  "content": "🎥 **New Movie Digital Release!**",
-                  "embeds": [
-                    {
-                      "title": movie.get('title'),
-                      "description": "Now available to stream.",
-                      "color": 10038562,
-                      "fields": [
-                        {
-                          "name": "Release Date",
-                          "value": f"`{movie.get('release_date')}`",
-                          "inline": True
-                        },
-                        {
-                          "name": "Runtime",
-                          "value": f"`{movie.get('runtime')}`",
-                          "inline": True
-                        },
-                        {
-                          "name": "Genres",
-                          "value": f"{', '.join(genres)}",
-                          "inline": False
-                        }
-                      ],
-                      "image": {
-                        "url": f"https://image.tmdb.org/t/p/w780{movie.get("poster_path")}"
-                      },
-                      "footer": {
-                        "text": "Movie Release Notification"
-                      },
-                      "timestamp": f"{datetime.now().isoformat()}"
-                    }
-                  ]
-                }
-                
-                requests.post(DISCORD_URL, json=discord_msg)
         update_db(db_data)
         return jsonify({"success": "true", "message": "check_movie checked successfully"}), 200
     except Exception as e:
@@ -811,9 +718,6 @@ def prepper_to_send_movie_notification():
     
     return jsonify({"success": "true", "message": "movie notification send successfully"}), 200
 
-    
-
-
 @app.route('/api/checker/tv', methods=['POST'])
 def check_tv():
     try:
@@ -949,3 +853,6 @@ def updater():
     
     update_db(db_data)
     return jsonify({"success": "true", "message": "Updated the media"}), 200
+
+
+# @app.route('/api/checker/movie', methods=['POST'])
