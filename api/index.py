@@ -175,7 +175,7 @@ def get_game_results(query):
     }
     
     fields = "name,cover.image_id,first_release_date,game_type,game_status.status,genres.name,hypes,summary,first_release_date,rating,rating_count"
-    filters = "themes != (42) & game_type = (0, 8, 9, 10)"
+    filters = "themes != (42) & game_type = (0, 8)"
     
     response = requests.post(f"https://api.igdb.com/v4/games" ,headers=headers, data=f'fields {fields}; where {filters}; search "{query}";')
     if response.status_code != 200:
