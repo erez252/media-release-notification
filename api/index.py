@@ -877,6 +877,10 @@ def updater():
 @app.route('/api/checker/game', methods=['POST'])
 def game_checker():
     
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+        return jsonify({'error': 'Unauthorized'}), 401
+    
     watchlist = get_db_data_v2()
     
     limit = 18
