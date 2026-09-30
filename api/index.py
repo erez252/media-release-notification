@@ -1,3 +1,4 @@
+from math import e
 import os
 import time
 import json
@@ -1047,7 +1048,7 @@ def game_checker():
                     else:
                         time_in_sec = 0
                     print(body)
-                    # send_game_to_qstush(time_in_sec, body)
+                    send_game_to_qstush(time_in_sec, body)
         except Exception as e:
             continue
     # update_db(watchlist)
@@ -1063,8 +1064,8 @@ def send_game_notification():
         return jsonify({'error': 'Unauthorized'}), 401
     
     body = request.get_json() or {}
-    name = body.get("title")
     if body.get("release_dates"):
+        name = body.get("title")
         poster = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{body.get("poster_path", "")}.jpg"
         
         developer = []
@@ -1078,7 +1079,7 @@ def send_game_notification():
         raw_release_date = body.get('release_dates')[0]
         
         if raw_release_date.get('date'):
-            release_dates = datetime.fromtimestamp(raw_release_date.get('date')).date().isoformat()
+            release_dates = datetime.fromtimestamp(raw_release_date.get('date'), timezone.utc).date().isoformat()
             
         platforms = []
         if body.get("platforms"):
@@ -1086,7 +1087,7 @@ def send_game_notification():
                platforms.append(platform.get("abbreviation"))
             platforms = ", ".join(platforms)
         else:
-            platforms = "Unknown"
+            platforms = "Unknown(?)"
             
         genres = []
         if body.get("genres"):
@@ -1094,7 +1095,7 @@ def send_game_notification():
                 genres.append(genre.get("name", ""))
             genres = ", ".join(genres)
         else:
-            genres = "Unknown"
+            genres = "Unknown(?)"
             
         discord_msg = {
           "content": "🎮 **New Game Released!**",
@@ -1111,7 +1112,7 @@ def send_game_notification():
                 },
                 {
                   "name": "Developer",
-                  "value": developer,
+                  "value": developer or "Unknown(?)",
                   "inline": True
                 },
                 {
@@ -1134,8 +1135,56 @@ def send_game_notification():
           ],
           "attachments": []
         }
-        
         requests.post(DISCORD_URL, json=discord_msg)
+    elif body.get("content"):
+        content = body.get("content")[0]
+        
+        name = body.get("title")
+        content_type = content.get("game_type", {}).get('type')
+        release_date = datetime.fromtimestamp(content.get("first_release_date"), timezone.utc).date().isoformat()
+        expansion_title = content.get('name') or "Unknown(?)"
+        poster = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{(content.get('cover') or {}).get('image_id') or content.get('cover')}.jpg"
+    
+        
+        discord_msg = {
+          "content": f"🧩 **New {content_type or "DLC / Expansion"} Released!**",
+          "embeds": [
+            {
+              "title": name,
+              "description": "New downloadable content is now available.",
+              "color": 5814783,
+              "fields": [
+                {
+                  "name": "Type",
+                  "value": f"`{content_type or "Unknown(?)"}`",
+                  "inline": True
+                },
+                {
+                  "name": "Release Date",
+                  "value": f"`{release_date}`",
+                  "inline": True
+                },
+                {
+                  "name": "Expansion Title",
+                  "value": f"**{expansion_title}**"
+                }
+              ],
+              "footer": {
+                "text": "Game DLC Notification"
+              },
+              "timestamp": datetime.now(timezone.utc).isoformat(),
+              "thumbnail": {
+                "url": poster
+              }
+            }
+          ],
+          "attachments": []
+        }
+        requests.post(DISCORD_URL, json=discord_msg)
+    else:
+        return jsonify({"success": "false", "message": "game notification was not send"}), 200
+
+
     
     return jsonify({"success": "true", "message": "game notification send successfully"}), 200
     
