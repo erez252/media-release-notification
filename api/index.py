@@ -873,7 +873,7 @@ def updater():
     return jsonify({"success": "true", "message": "Updated the media"}), 200
 
 
-@app.route('/api/checker/movie', methods=['POST'])
+@app.route('/api/checker/game', methods=['POST'])
 def game_checker():
     
     watchlist = get_db_data_v2()
