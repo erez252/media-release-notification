@@ -1134,6 +1134,9 @@ def send_game_notification():
           ],
           "attachments": []
         }
+        
+        requests.post(DISCORD_URL, json=discord_msg)
+    
     return jsonify({"success": "true", "message": "game notification send successfully"}), 200
     
             
