@@ -143,8 +143,8 @@ def send_movie_notification(item, time):
             }
           ]
         }
-    
-    requests.post(DISCORD_URL, json=discord_msg)
+    if item.get("notifications"):
+        requests.post(DISCORD_URL, json=discord_msg)
 
     
 def send_to_qstush_movie(seconds_left, body):
@@ -546,7 +546,8 @@ def check_movie():
                     send_to_qstush_movie(sec_until_notification, body)
                 if movie_notification_now:
                         item['digital'] = True
-                        send_movie_notification(item, dates['release_date'])
+                        if item.get("notifications"):
+                            send_movie_notification(item, dates['release_date'])
                     
                     
         update_db(db_data)
@@ -562,10 +563,13 @@ def send_tv_notification():
         return jsonify({'error': 'Unauthorized'}), 401
 
     body = request.get_json() or {}
+
     
     if len(body) == 1:
         
         episode = body[0]
+        show_id = episode.get("id")
+        item = get_item_data_from_db({'id': show_id, "media_type": "tv"})
         
         what_new = "Episode"
         if episode.get("episode") == 1:
@@ -640,8 +644,8 @@ def send_tv_notification():
                 }
               ]
             }
-        
-        requests.post(DISCORD_URL, json=discord_msg)
+        if item.get("notifications"):
+            requests.post(DISCORD_URL, json=discord_msg)
         return jsonify({"success": "true", "message": "tv notification send successfully"}), 200
     
     # check if its a new Episodes, Season or Show
@@ -689,8 +693,8 @@ def send_tv_notification():
         }
     
 
-    
-    requests.post(DISCORD_URL, json=discord_msg)
+    if item.get("notifications"):
+        requests.post(DISCORD_URL, json=discord_msg)
     return jsonify({"success": "true", "message": "tv notification send successfully"}), 200
 
 @app.route('/api/notification/movie', methods=['POST'])
@@ -721,7 +725,8 @@ def prepper_to_send_movie_notification():
     movie['notification_soon'] = False
     if movie_notification_now:
         movie['digital'] = True
-        send_movie_notification(movie, time)
+        if movie.get("notifications"):
+            send_movie_notification(movie, time)
 
     update_one_item_in_db(movie)
         
@@ -761,7 +766,7 @@ def check_tv():
                 new_episodes = []
                 for ep in tvmaze_data:
                     if  datetime.fromisoformat(ep.get("airstamp")).astimezone(timezone.utc).date() == (datetime.now(timezone.utc).date() + timedelta(days=1)):
-                        new_episodes.append({'show_name': show.get('title'), 'season': ep.get('season'), 'episode': ep.get('number'), 'airstamp': ep.get("airstamp"), 'airtime': ep.get('airtime'), 'type': ep.get("type", ""), 'name': ep.get("name", ""), 'poster_path': show.get("poster_path", "")})
+                        new_episodes.append({'id': show.get('id'), 'show_name': show.get('title'), 'season': ep.get('season'), 'episode': ep.get('number'), 'airstamp': ep.get("airstamp"), 'airtime': ep.get('airtime'), 'type': ep.get("type", ""), 'name': ep.get("name", ""), 'poster_path': show.get("poster_path", "")})
                 if new_episodes:        
                     new_episodes_all.append(new_episodes)
         update_db(db_data)
@@ -1164,7 +1169,9 @@ def send_game_notification():
           ],
           "attachments": []
         }
-        requests.post(DISCORD_URL, json=discord_msg)
+        if item.get("notifications"):
+            requests.post(DISCORD_URL, json=discord_msg)
+
     elif body.get("content"):
         content = body.get("content")[0]
         
@@ -1209,15 +1216,38 @@ def send_game_notification():
           ],
           "attachments": []
         }
-        requests.post(DISCORD_URL, json=discord_msg)
+        if item.get("notifications"):
+            requests.post(DISCORD_URL, json=discord_msg)
     else:
         return jsonify({"success": "false", "message": "game notification was not send"}), 200
 
 
     
     return jsonify({"success": "true", "message": "game notification send successfully"}), 200
+
+
+@app.route('/api/toggle/notification', methods=['POST'])
+def toggle_notification():
     
-            
+    body = request.get_json() or {}
+    authorized = is_authorized(body)
+    if not authorized:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    getting_item = {'id': body.get("movieId"), "media_type": body.get("movieType")}
+    
+    item = get_item_data_from_db(getting_item)
+    if item:
+        if body.get("notifications_enabled"):
+            item["notifications"] = True
+            item["notifications_enabled_at"] = datetime.now(timezone.utc).isoformat()
+        else:
+            item["notifications"] = False
+        update_one_item_in_db(item)
+        return jsonify({"success": "true", "notification_status": item["notifications"]}), 200
+
+    else:
+        return jsonify({"success": "false", "notification_status": "unknown"}), 500 
         
     
     
