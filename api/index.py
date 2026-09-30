@@ -879,7 +879,7 @@ def game_checker():
     
     watchlist = get_db_data_v2()
     
-    limit = 22
+    limit = 18
     items_before_sleeping = 3
     sleep_for = 2
     
@@ -916,7 +916,6 @@ def game_checker():
                 if not data:
                     continue
                 game = data[0]
-                print(game["name"])
                 item["last_checked"] = datetime.now(timezone.utc).isoformat()
 
                 
@@ -925,9 +924,10 @@ def game_checker():
                 # **checking main game**
 
                 #checking for shod droop
-                if not item.get("released"):
+                if not item.get("released") and not item.get("notification_soon"):
                     if game.get("first_release_date") and datetime.fromtimestamp(game.get("first_release_date"), timezone.utc).date() <= datetime.now(timezone.utc).date():
                         body = {
+                                "id": game.get("id"),
                                 "media_type": "game",
                                 "title": game.get("name", ""), 
                                 "overview": game.get("summary", ""),
@@ -938,9 +938,8 @@ def game_checker():
                                 'release_date': game.get("first_release_date")
                             }
                         item["released"] = True
-                        print(body)
+                        send_game_to_qstush(0, body)
                         continue
-                        # send_game_to_qstush(0, body)
 
                     #checking for tomorrow dates
                     release_dates = game.get("release_dates") or []
@@ -952,6 +951,7 @@ def game_checker():
 
                     if upcoming_main_game_dates:
                         body = {
+                           "id": game.get("id"),
                            "media_type": "game",
                            "title": game.get("name", ""), 
                            "overview": game.get("summary", ""),
@@ -962,8 +962,8 @@ def game_checker():
                            'release_dates': upcoming_main_game_dates
                         }
                         time_in_sec = max(0, int(upcoming_main_game_dates[0]["date"] - datetime.now(timezone.utc).timestamp()))
+                        item["notification_soon"] = True
                         send_game_to_qstush(time_in_sec, body)
-                        print(body)
                         continue
                     
                     
@@ -1003,6 +1003,7 @@ def game_checker():
 
                 if missed_content:
                     body = {
+                        "id": game.get("id"),
                         "media_type": "game",
                         "title": game.get("name", ""),
                         "overview": game.get("summary", ""),
@@ -1014,8 +1015,7 @@ def game_checker():
                     }
                     notified_ids = item.setdefault("notified_content_ids", [])
                     notified_ids.extend([dlc["id"] for dlc in missed_content if dlc.get("id")])
-                    # send_game_to_qstush(0, body)
-                    print(body)
+                    send_game_to_qstush(0, body)
                     continue
                 
                 # side content tomorrow
@@ -1032,6 +1032,7 @@ def game_checker():
 
                 if upcoming_side_dates:
                     body = {
+                        "id": game.get("id"),
                         "media_type": "game",
                         "title": game.get("name", ""),
                         "overview": game.get("summary", ""),
@@ -1047,11 +1048,10 @@ def game_checker():
                         time_in_sec = max(0, int(upcoming_side_dates[0]["first_release_date"] - datetime.now(timezone.utc).timestamp()))
                     else:
                         time_in_sec = 0
-                    print(body)
                     send_game_to_qstush(time_in_sec, body)
         except Exception as e:
             continue
-    # update_db(watchlist)
+    update_db(watchlist)
     return jsonify({"success": "true", "message": "check_game checked successfully"}), 200
     
     
@@ -1065,6 +1065,11 @@ def send_game_notification():
     
     body = request.get_json() or {}
     if body.get("release_dates"):
+        
+        item = get_item_data_from_db(body)
+        item["released"] = True
+        update_one_item_in_db(item)
+        
         name = body.get("title")
         poster = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{body.get("poster_path", "")}.jpg"
         
