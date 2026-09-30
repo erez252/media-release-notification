@@ -56,7 +56,7 @@ def get_item_data_from_db(item):
     if data:
         data = json.loads(data)
     
-    return(data)   
+    return(data or {})   
 
 def update_one_item_in_db(item):
     field = f"{item.get('media_type')}:{item.get('id')}"
