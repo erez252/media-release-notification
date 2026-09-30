@@ -1091,6 +1091,7 @@ def send_game_notification():
         
         item = get_item_data_from_db(body)
         item["released"] = True
+        item["status"] = "Released"
         update_one_item_in_db(item)
         
         name = body.get("title")
