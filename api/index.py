@@ -1,10 +1,10 @@
-from abc import update_abstractmethods
 import os
+import time
 import json
 import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 app = Flask(__name__)
 CORS(app)  # Handles CORS preflight headers automatically
 
@@ -19,6 +19,11 @@ IGDB_ACCESS_TOKEN = os.environ.get('IGDB_ACCESS_TOKEN')
 
 headers = {"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"}
 qstash_header= {"Authorization": f"Bearer {QSTASH_TOKEN}"}
+igdb_headers = {
+  "Content-Type": "application/json",
+  'Client-ID': IGDB_CLIENT_ID,
+  'Authorization': f"Bearer {IGDB_ACCESS_TOKEN}"
+}
 
 def is_authorized(body):
     user_password = body.get("password")
@@ -139,7 +144,7 @@ def send_movie_notification(item, time):
         }
     
     requests.post(DISCORD_URL, json=discord_msg)
-    
+
     
 def send_to_qstush_movie(seconds_left, body):
     
@@ -153,7 +158,20 @@ def send_to_qstush_movie(seconds_left, body):
     qstash_publish_endpoint = f"{QSTASH_URL}/publish/{target_url}"
     qstash_task_payload = body
     
-    response = requests.post(qstash_publish_endpoint, headers=qstash_task_header, json=qstash_task_payload)
+    requests.post(qstash_publish_endpoint, headers=qstash_task_header, json=qstash_task_payload)
+
+def send_game_to_qstush(delay, body):
+    target_url = "https://media-release-notification.vercel.app/api/notification/game"
+    qstash_task_header= {
+        "Authorization": f"Bearer {QSTASH_TOKEN}",
+        "Content-Type": "application/json",
+        "Upstash-Delay": f"{delay}s",
+        "Upstash-Forward-Authorization": f"Bearer {os.environ.get('PASSWORD')}"
+    }
+    qstash_publish_endpoint = f"{QSTASH_URL}/publish/{target_url}"
+    qstash_task_payload = body
+    
+    requests.post(qstash_publish_endpoint, headers=qstash_task_header, json=qstash_task_payload)
 
 def get_game_results(query):
     
@@ -855,4 +873,268 @@ def updater():
     return jsonify({"success": "true", "message": "Updated the media"}), 200
 
 
-# @app.route('/api/checker/movie', methods=['POST'])
+@app.route('/api/checker/movie', methods=['POST'])
+def game_checker():
+    
+    watchlist = get_db_data_v2()
+    
+    limit = 22
+    items_before_sleeping = 3
+    sleep_for = 2
+    
+    count = 0
+
+    for item in watchlist:
+        
+        if count == limit:
+            break
+        try:
+            if item.get("media_type") == "game" and (not item.get("last_checked") or datetime.fromisoformat(item.get("last_checked")).date() != datetime.now(timezone.utc).date()):
+
+                # checking if we need to wait a bit before the next req
+                if count and count % items_before_sleeping == 0:
+                    time.sleep(sleep_for)
+
+
+                fields = (
+                    "name,cover.image_id,first_release_date,game_type,game_status,genres.name,hypes,summary,rating,rating_count,"
+                    "involved_companies.company.name,involved_companies.developer,involved_companies.publisher,"
+                    "platforms.abbreviation,"
+                    "release_dates.status.name,release_dates.date,"
+                    "dlcs.name,dlcs.first_release_date,dlcs.game_type.type,dlcs.cover.image_id,"
+                    "expanded_games.name,expanded_games.first_release_date,expanded_games.game_type.type,expanded_games.cover.image_id,"
+                    "expansions.name,expansions.first_release_date,expansions.game_type.type,expansions.cover.image_id,"
+                    "ports.name,ports.first_release_date,ports.game_type.type,ports.cover.image_id,"
+                    "remakes.name,remakes.first_release_date,remakes.game_type.type,remakes.cover.image_id,"
+                    "remasters.name,remasters.first_release_date,remasters.game_type.type,remasters.cover.image_id,"
+                    "standalone_expansions.name,standalone_expansions.first_release_date,standalone_expansions.game_type.type,standalone_expansions.cover.image_id"
+                )
+                response = requests.post(f"https://api.igdb.com/v4/games" ,headers=igdb_headers, data=f'fields {fields}; where id = {item["id"]};')
+                count += 1
+                data = response.json()
+                if not data:
+                    continue
+                game = data[0]
+                print(game["name"])
+                item["last_checked"] = datetime.now(timezone.utc).isoformat()
+
+                
+                # chaking 
+
+                # **checking main game**
+
+                #checking for shod droop
+                if not item.get("released"):
+                    if game.get("first_release_date") and datetime.fromtimestamp(game.get("first_release_date"), timezone.utc).date() <= datetime.now(timezone.utc).date():
+                        body = {
+                                "media_type": "game",
+                                "title": game.get("name", ""), 
+                                "overview": game.get("summary", ""),
+                                "poster_path": game.get("cover", {}).get("image_id"),
+                                "genres": game.get("genres", []),
+                                "involved_companies": game.get("involved_companies", []),
+                                "platforms": game.get("platforms", []),
+                                'release_date': game.get("first_release_date")
+                            }
+                        item["released"] = True
+                        print(body)
+                        continue
+                        # send_game_to_qstush(0, body)
+
+                    #checking for tomorrow dates
+                    release_dates = game.get("release_dates") or []
+
+                    upcoming_main_game_dates = []
+                    for date in release_dates:
+                        if date.get("date") and datetime.fromtimestamp(date.get("date"), timezone.utc).date() == datetime.now(timezone.utc).date() + timedelta(days=1):
+                            upcoming_main_game_dates.append({"date": date['date'], "status": (date.get("status") or {}).get("name", "")})
+
+                    if upcoming_main_game_dates:
+                        body = {
+                           "media_type": "game",
+                           "title": game.get("name", ""), 
+                           "overview": game.get("summary", ""),
+                           "poster_path": game.get("cover", {}).get("image_id"),
+                           "genres": game.get("genres", []),
+                           "involved_companies": game.get("involved_companies", []),
+                           "platforms": game.get("platforms", []),
+                           'release_dates': upcoming_main_game_dates
+                        }
+                        time_in_sec = max(0, int(upcoming_main_game_dates[0]["date"] - datetime.now(timezone.utc).timestamp()))
+                        send_game_to_qstush(time_in_sec, body)
+                        print(body)
+                        continue
+                    
+                    
+                # **side content*
+                all_content = []
+                content_fields = [
+                    "dlcs", 
+                    "expanded_games", 
+                    "expansions", 
+                    "remakes", 
+                    "remasters", 
+                    "standalone_expansions",
+                    "ports"
+                ]
+                for field in content_fields:
+                    items = game.get(field)
+                    if items:
+                        all_content.extend(items)
+
+
+
+                # getting shadow drop
+                missed_content = []
+                raw_date = item.get("notifications_enabled_at")
+                notifications_enabled_at = datetime.fromisoformat(raw_date) if raw_date else datetime.now(timezone.utc)
+                if notifications_enabled_at.tzinfo is None:
+                    notifications_enabled_at = notifications_enabled_at.replace(tzinfo=timezone.utc)
+                for dlc in all_content:
+                    dlc_id = dlc.get("id")
+                    try:
+                        dlc_release = datetime.fromtimestamp(dlc.get("first_release_date"), timezone.utc)
+                    except TypeError:
+                        dlc_release = False
+                    if dlc_release and  dlc_release >= notifications_enabled_at and not dlc_release > datetime.now(timezone.utc):
+                        if dlc_id and dlc_id not in item.get("notified_content_ids", []):
+                            missed_content.append(dlc)
+
+                if missed_content:
+                    body = {
+                        "media_type": "game",
+                        "title": game.get("name", ""),
+                        "overview": game.get("summary", ""),
+                        "poster_path": (game.get("cover") or {}).get("image_id"),
+                        "genres": game.get("genres", []),
+                        "involved_companies": game.get("involved_companies", []),
+                        "platforms": game.get("platforms", []),
+                        "content": missed_content
+                    }
+                    notified_ids = item.setdefault("notified_content_ids", [])
+                    notified_ids.extend([dlc["id"] for dlc in missed_content if dlc.get("id")])
+                    # send_game_to_qstush(0, body)
+                    print(body)
+                    continue
+                
+                # side content tomorrow
+                upcoming_side_dates = []
+                for dlc in all_content:
+                    dlc_id = dlc.get("id")
+                    try:
+                        dlc_release = datetime.fromtimestamp(dlc.get("first_release_date"), timezone.utc)
+                    except TypeError:
+                        dlc_release = False
+                    if dlc_release and dlc_release.date() == datetime.now(timezone.utc).date() + timedelta(days=1):
+                        if dlc_id and dlc_id not in item.get("notified_content_ids", []):
+                            upcoming_side_dates.append(dlc)
+
+                if upcoming_side_dates:
+                    body = {
+                        "media_type": "game",
+                        "title": game.get("name", ""),
+                        "overview": game.get("summary", ""),
+                        "poster_path": (game.get("cover") or {}).get("image_id"),
+                        "genres": game.get("genres", []),
+                        "involved_companies": game.get("involved_companies", []),
+                        "platforms": game.get("platforms", []),
+                        "content": upcoming_side_dates
+                    }
+                    notified_ids = item.setdefault("notified_content_ids", [])
+                    notified_ids.extend([dlc["id"] for dlc in upcoming_side_dates if dlc.get("id")])
+                    if upcoming_side_dates[0].get("first_release_date"):
+                        time_in_sec = max(0, int(upcoming_side_dates[0]["first_release_date"] - datetime.now(timezone.utc).timestamp()))
+                    else:
+                        time_in_sec = 0
+                    print(body)
+                    # send_game_to_qstush(time_in_sec, body)
+        except Exception as e:
+            continue
+    # update_db(watchlist)
+    
+    
+@app.route('/api/notification/game', methods=['POST'])
+def send_game_notification():
+    
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    body = request.get_json() or {}
+    name = body.get("title")
+    if body.get("release_dates"):
+        poster = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{body.get("poster_path", "")}"
+        
+        developer = []
+        involved_companies = body.get('involved_companies', [])
+        for companie in involved_companies:
+            if companie.get("developer"):
+                developer.append(companie.get("company", {}).get("name", ""))
+        developer = ", ".join(developer)
+        
+        release_dates = "Error"
+        raw_release_date = body.get('release_dates')[0]
+        
+        if raw_release_date.get('date'):
+            release_dates = datetime.fromtimestamp(raw_release_date.get('date')).isoformat()
+            
+        platforms = []
+        if body.get("platforms"):
+            for platform in body.get("platforms"):
+               platforms.append(platform.get("abbreviation"))
+            platforms = ", ".join(platforms)
+        else:
+            platforms = "Unknown"
+            
+        genres = []
+        if body.get("genres"):
+            for genre in body.get("genres"):
+                genres.append(genre.get("name", ""))
+            genres = ", ".join(genres)
+        else:
+            genres = "Unknown"
+            
+        discord_msg = {
+          "content": "🎮 **New Game Released!**",
+          "embeds": [
+            {
+              "title": name,
+              "description": "Now available to play.",
+              "color": 15418782,
+              "fields": [
+                {
+                  "name": "Release Date",
+                  "value": f"`{release_dates}`",
+                  "inline": True
+                },
+                {
+                  "name": "Developer",
+                  "value": developer,
+                  "inline": True
+                },
+                {
+                  "name": "Platforms",
+                  "value": platforms
+                },
+                {
+                  "name": "Genres",
+                  "value": genres
+                }
+              ],
+              "footer": {
+                "text": "Game Release Notification"
+              },
+              "timestamp": datetime.now(timezone.utc).isoformat(),
+              "image": {
+                "url": poster
+              }
+            }
+          ],
+          "attachments": []
+        }
+        
+            
+        
+    
+    
+    
