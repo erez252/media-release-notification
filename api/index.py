@@ -1065,7 +1065,7 @@ def send_game_notification():
     body = request.get_json() or {}
     name = body.get("title")
     if body.get("release_dates"):
-        poster = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{body.get("poster_path", "")}"
+        poster = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{body.get("poster_path", "")}.jpg"
         
         developer = []
         involved_companies = body.get('involved_companies', [])
@@ -1078,7 +1078,7 @@ def send_game_notification():
         raw_release_date = body.get('release_dates')[0]
         
         if raw_release_date.get('date'):
-            release_dates = datetime.fromtimestamp(raw_release_date.get('date')).isoformat()
+            release_dates = datetime.fromtimestamp(raw_release_date.get('date')).date().isoformat()
             
         platforms = []
         if body.get("platforms"):
