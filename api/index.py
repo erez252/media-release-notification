@@ -921,7 +921,7 @@ def game_checker():
                     continue
                 game = data[0]
                 item["last_checked"] = datetime.now(timezone.utc).isoformat()
-
+                #TODO update the item data with the new game data
                 
                 # chaking 
 
@@ -943,6 +943,7 @@ def game_checker():
                             }
                         item["released"] = True
                         send_game_to_qstush(0, body)
+                        update_one_item_in_db(item)
                         continue
 
                     #checking for tomorrow dates
@@ -968,6 +969,7 @@ def game_checker():
                         time_in_sec = max(0, int(upcoming_main_game_dates[0]["date"] - datetime.now(timezone.utc).timestamp()))
                         item["notification_soon"] = True
                         send_game_to_qstush(time_in_sec, body)
+                        update_one_item_in_db(item)
                         continue
                     
                     
@@ -1020,6 +1022,7 @@ def game_checker():
                     notified_ids = item.setdefault("notified_content_ids", [])
                     notified_ids.extend([dlc["id"] for dlc in missed_content if dlc.get("id")])
                     send_game_to_qstush(0, body)
+                    update_one_item_in_db(item)
                     continue
                 
                 # side content tomorrow
@@ -1053,9 +1056,10 @@ def game_checker():
                     else:
                         time_in_sec = 0
                     send_game_to_qstush(time_in_sec, body)
+                    
+                update_one_item_in_db(item)
         except Exception as e:
             continue
-    update_db(watchlist)
     return jsonify({"success": "true", "message": "check_game checked successfully"}), 200
     
     
