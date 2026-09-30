@@ -260,8 +260,6 @@ def get_game_by_id(id):
     poster_path = cover.get("image_id", "") if cover else ""
     
     vote_average = game.get("rating", 0)
-    if vote_average:
-        vote_average = vote_average / 10
         
     custom_data = {
             'id': game.get("id", ""),
@@ -275,7 +273,7 @@ def get_game_by_id(id):
             "last_notification": None,
             "digital": digital,
             "release_date": release_date,
-            'popularity': game.get("hype", 0),
+            'popularity': game.get("hypes", 0),
             "vote_average": vote_average,
             "vote_count": game.get("rating_count", 0),
             "added_date": datetime.now(timezone.utc).isoformat(),
@@ -923,7 +921,24 @@ def game_checker():
                 item["last_checked"] = datetime.now(timezone.utc).isoformat()
                 #TODO update the item data with the new game data
                 
+                item_timestamp_raw = game.get("first_release_date")
+                item_release_date = ""
+                if item_timestamp_raw is not None:
+                    item_original_release_date = float(item_timestamp_raw)
+                    item_release_date = datetime.fromtimestamp(item_original_release_date, timezone.utc).date().isoformat()
+
+                item["title"] = game.get("name") or ""
+                item["poster_path"] = (game.get("cover") or {}).get("image_id") or ""
+                item["overview"] = game.get("summary") or ""
+                item["genres"] = game.get("genres") or []
+                item["release_date"] = item_release_date
+                item["popularity"] = game.get("hypes") or 0
+                item["vote_average"] = game.get("rating") or 0
+                item["vote_count"] = game.get("rating_count") or 0
+                
+
                 # chaking 
+
 
                 # **checking main game**
 
