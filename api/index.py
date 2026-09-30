@@ -1051,6 +1051,8 @@ def game_checker():
         except Exception as e:
             continue
     # update_db(watchlist)
+    return jsonify({"success": "true", "message": "check_game checked successfully"}), 200
+    
     
     
 @app.route('/api/notification/game', methods=['POST'])
@@ -1132,7 +1134,8 @@ def send_game_notification():
           ],
           "attachments": []
         }
-        
+    return jsonify({"success": "true", "message": "game notification send successfully"}), 200
+    
             
         
     
