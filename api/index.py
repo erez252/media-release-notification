@@ -1458,23 +1458,7 @@ def catalog(content_type, catalog_id):
         db_data = sorted(db_data, key=lambda item : item.get("added_date", ""), reverse=True)
         
 
-        selected_option = request.args.get('genre', 'Sort: Newest First')
-        
-        
-        if selected_option == "Newest First":
-            db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=True)
-        elif selected_option == "Oldest First":
-            db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=False)
-        elif selected_option == "Alphabetical":
-            db_data = sorted(db_data, key=lambda item: item.get("title").lower())
-        else:
-            filtered_data = []
-            for item in db_data:
-                item_genres = item.get("genres", [])
-                genre_names = [g.get("name") for g in item_genres if g.get("name")]
-                if selected_option in genre_names:
-                    filtered_data.append(item)
-            db_data = filtered_data
+
         
         if content_type == "movie":
             movies = []
@@ -1489,6 +1473,23 @@ def catalog(content_type, catalog_id):
                         }) 
             return jsonify({"metas": movies})
         if content_type == "series":
+            selected_option = request.args.get('genre', 'Sort: Newest First')
+                    
+                    
+            if selected_option == "Newest First":
+                db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=True)
+            elif selected_option == "Oldest First":
+                db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=False)
+            elif selected_option == "Alphabetical":
+                db_data = sorted(db_data, key=lambda item: item.get("title").lower())
+            else:
+                filtered_data = []
+                for item in db_data:
+                    item_genres = item.get("genres", [])
+                    genre_names = [g.get("name") for g in item_genres if g.get("name")]
+                    if selected_option in genre_names:
+                        filtered_data.append(item)
+                db_data = filtered_data
             shows = []
             for show in db_data:
                 poster_path = show.get("poster_path")
