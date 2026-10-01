@@ -1225,7 +1225,7 @@ def send_game_notification():
 
         return jsonify({"success": "true", "message": "game notification send successfully"}), 200
     except Exception as e:
-        return jsonify({"success": "fales", "message": f"{e}"}), 200
+        return jsonify({"success": "fales", "message": f"{e}"}), 500
 
 @app.route('/api/toggle/notification', methods=['POST'])
 def toggle_notification():
