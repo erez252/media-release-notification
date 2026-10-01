@@ -1458,11 +1458,11 @@ def catalog(content_type, catalog_id):
     if catalog_id == "my_custom_catalog":
         db_data = get_db_data_v2()
         if content_type == "movie":
-            poster_path = movie.get("poster_path")
             movies = []
             for movie in db_data:
                 if movie["media_type"] == "movie":
-                   movies.append({
+                    poster_path = movie.get("poster_path")
+                    movies.append({
                         "id": f"tmdb:{movie['id']}", 
                         "type": "movie",
                         "name": f"{movie['title']}",
@@ -1477,10 +1477,10 @@ def catalog(content_type, catalog_id):
                     shows.append({
                         "id": f"tmdb:{show['id']}",
                         "type": "series",
-                        "name": f"{show['title']}",
+                        "name": f"{show.get('title') or show.get('name', 'Unknown')}",
                         "poster": f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else "https://placehold.co"
                     })
             return jsonify({"metas": shows})
         
-        return jsonify({"metas": []}), 404
+    return jsonify({"metas": []}), 404
             
