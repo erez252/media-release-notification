@@ -1434,7 +1434,14 @@ def manifest():
             {
                 "id": "my_custom_catalog",
                 "type": "movie",
-                "name": "My Favorites: Movies"
+                "name": "My Favorites: Movies",
+                "extra": [
+                    {
+                      "name": "genre",
+                      "isRequired": False,
+                      "options": ["Sort: Newest First",  "Sort: Oldest First", "Sort: Alphabetical", "Adventure", "Animation", "Drama"]
+                    }
+                ]
             },
             {
                 "id": "my_custom_catalog",
@@ -1445,7 +1452,7 @@ def manifest():
                       "name": "genre",
                       "isRequired": False,
                       "options": ["Sort: Newest First",  "Sort: Oldest First", "Sort: Alphabetical", "Action & Adventure", "Animation", "Drama", "Familie"]
-                    },
+                    }
                 ]
             }
         ]
@@ -1457,7 +1464,23 @@ def catalog(content_type, catalog_id):
         db_data = get_db_data_v2()
         db_data = sorted(db_data, key=lambda item : item.get("added_date", ""), reverse=True)
         
-
+        selected_option = request.args.get('genre', 'Sort: Newest First')
+                    
+                    
+        if selected_option == "Sort: Newest First":
+            db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=True)
+        elif selected_option == "Sort: Oldest First":
+            db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=False)
+        elif selected_option == "Sort: Alphabetical":
+            db_data = sorted(db_data, key=lambda item: item.get("title").lower())
+        else:
+            filtered_data = []
+            for item in db_data:
+                item_genres = item.get("genres", [])
+                genre_names = [g.get("name") for g in item_genres if g.get("name")]
+                if selected_option in genre_names:
+                    filtered_data.append(item)
+            db_data = filtered_data
 
         
         if content_type == "movie":
@@ -1473,23 +1496,6 @@ def catalog(content_type, catalog_id):
                         }) 
             return jsonify({"metas": movies})
         if content_type == "series":
-            selected_option = request.args.get('genre', 'Sort: Newest First')
-                    
-                    
-            if selected_option == "Sort: Newest First":
-                db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=True)
-            elif selected_option == "Sort: Oldest First":
-                db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=False)
-            elif selected_option == "Sort: Alphabetical":
-                db_data = sorted(db_data, key=lambda item: item.get("title").lower())
-            else:
-                filtered_data = []
-                for item in db_data:
-                    item_genres = item.get("genres", [])
-                    genre_names = [g.get("name") for g in item_genres if g.get("name")]
-                    if selected_option in genre_names:
-                        filtered_data.append(item)
-                db_data = filtered_data
             shows = []
             for show in db_data:
                 poster_path = show.get("poster_path")
