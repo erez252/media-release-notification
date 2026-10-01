@@ -1457,7 +1457,7 @@ def manifest():
 def catalog(content_type, catalog_id):
     if catalog_id == "my_custom_catalog":
         db_data = get_db_data_v2()
-        db_data = sorted(db_data, key=lambda item : item.get("added_date", ""))
+        db_data = sorted(db_data, key=lambda item : item.get("added_date", ""), reverse=True)
         if content_type == "movie":
             movies = []
             for movie in db_data:
