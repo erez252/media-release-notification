@@ -1436,7 +1436,7 @@ def manifest():
         # הגדרות מערכת קבועות שסטרימיו צריך:
         "resources": ["catalog"],
         "types": ["movie", "series"],
-        "idPrefixes": ["tmdb"],
+        "idPrefixes": ["tt", "tmdb"],
         
         # 5. השורות (Catalogs) שיופיעו במסך הבית של סטרימיו
         "catalogs": [
@@ -1475,8 +1475,9 @@ def catalog(content_type, catalog_id):
             for show in db_data:
                 poster_path = show.get("poster_path")
                 if show["media_type"] == "tv":
+                    item_id = show.get("imdb_id") if show.get("imdb_id") else f"tmdb:{show.get('id')}"
                     shows.append({
-                        "id": f"tmdb:{show['id']}",
+                        "id": item_id,
                         "type": "series",
                         "name": f"{show.get('title') or show.get('name', 'Unknown')}",
                         "poster": f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else "https://placehold.co"
