@@ -26,6 +26,9 @@ igdb_headers = {
   'Client-ID': IGDB_CLIENT_ID,
   'Authorization': f"Bearer {IGDB_ACCESS_TOKEN}"
 }
+stremio_headers = {
+    "Content-Type": "application/json"
+}
 
 def is_authorized(body):
     user_password = body.get("password")
