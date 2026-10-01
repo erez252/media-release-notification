@@ -384,7 +384,9 @@ def add_item():
                 "last_notification": None,
                 "digital": digital,
                 "imdb_id": None,
-                "tvdb_id": None
+                "tvdb_id": None,
+                "notifications": True,
+                "notifications_enabled_at": datetime.now(timezone.utc).isoformat()
             }
         if media_type == "movie":
             movie_data["release_date"] = raw_movie_data.get("release_date", None)
