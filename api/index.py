@@ -1444,13 +1444,8 @@ def manifest():
                     {
                       "name": "genre",
                       "isRequired": False,
-                      "options": ["Action & Adventure", "Animation", "Drama", "Familie"]
+                      "options": ["Sort: Newest First",  "Sort: Oldest First", "Sort: Alphabetical", "Action & Adventure", "Animation", "Drama", "Familie"]
                     },
-                    {
-                        "name": "sort",
-                        "isRequired": False,
-                        "options": ["Newest First", "Oldest First", "Alphabetical"]
-                    }
                 ]
             }
         ]
@@ -1462,18 +1457,24 @@ def catalog(content_type, catalog_id):
         db_data = get_db_data_v2()
         db_data = sorted(db_data, key=lambda item : item.get("added_date", ""), reverse=True)
         
-        selected_genre = request.args.get('genre')
-        selected_sort = request.args.get('sort', 'Newest First')
+
+        selected_option = request.args.get('genre', 'Sort: Newest First')
         
-        if selected_genre:
-            db_data = [item for item in db_data if selected_genre in item.get("genres", [])]
-            
-        if selected_sort == "Newest First":
+        
+        if selected_option == "Newest First":
             db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=True)
-        elif selected_sort == "Oldest First":
+        elif selected_option == "Oldest First":
             db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=False)
-        elif selected_sort == "Alphabetical":
+        elif selected_option == "Alphabetical":
             db_data = sorted(db_data, key=lambda item: item.get("title").lower())
+        else:
+            filtered_data = []
+            for item in db_data:
+                item_genres = item.get("genres", [])
+                genre_names = [g.get("name") for g in item_genres if g.get("name")]
+                if selected_option in genre_names:
+                    filtered_data.append(item)
+            db_data = filtered_data
         
         if content_type == "movie":
             movies = []
