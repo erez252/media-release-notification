@@ -1388,7 +1388,7 @@ def add_media_from_stremio():
                     media_type = item_tmdb.get("media_type") or ""
             if media_type and id:
                 get_data_for_add_item(id, media_type)
-                return jsonify({"success": True, "message": f"successfly sync the data"}), 500
                 
+        return jsonify({"success": True, "message": f"successfly sync the data"}), 500
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
