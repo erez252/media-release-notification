@@ -1452,3 +1452,33 @@ def manifest():
             }
         ]
     })
+    
+@app.route('/api/catalog/<string:content_type>/<string:catalog_id>.json', methods=['GET'])
+def catalog(content_type, catalog_id):
+    if catalog_id == "my_personal_list":
+        db_data = get_db_data_v2()
+        if content_type == "movie":
+            movies = []
+            for movie in db_data:
+                if movie["media_type"] == movie:
+                   movies.append({
+                        "id": f"tmdb:{movie["id"]}", 
+                        "type": "movie",
+                        "name": f"{movie["tiitle"]}",
+                        "poster": f"https://image.tmdb.org/t/p/w342{movie.get("poster_path")}"
+                        }) 
+            return jsonify({"metas": movies})
+        if content_type == "series":
+            shows = []
+            for show in db_data:
+                if show["media_type"] == "tv":
+                    shows.append({
+                        "id": f"tmdb:{show["id"]}",
+                        "type": "series",
+                        "name": f"{show["tiitle"]}",
+                        "poster": f"https://image.tmdb.org/t/p/w342{show.get("poster_path")}"
+                    })
+            return jsonify({"metas": shows})
+        
+        return jsonify({"metas": []}), 404
+            
