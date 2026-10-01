@@ -1421,34 +1421,37 @@ def add_media_from_stremio():
 @app.route('/api/manifest.json', methods=['GET'])
 def manifest():
     return jsonify({
-        # 1. מזהה ייחודי (שנה את "yourname" לשם המשתמש שלך)
+
         "id": "com.erez225.mypersonaltmdblist", 
-        
-        # 2. גרסת התוסף (נוח למעקב אם תשנה הגדרות בעתיד)
         "version": "1.0.0", 
-        
-        # 3. השם שיופיע בסטרימיו
         "name": "My Personal TMDB Catalog", 
-        
-        # 4. תיאור קצר
         "description": "Personal movie and series list served from Vercel serverless function",
-        
-        # הגדרות מערכת קבועות שסטרימיו צריך:
         "resources": ["catalog"],
         "types": ["movie", "series"],
         "idPrefixes": ["tt", "tmdb"],
         
-        # 5. השורות (Catalogs) שיופיעו במסך הבית של סטרימיו
         "catalogs": [
             {
                 "id": "my_custom_catalog",
                 "type": "movie",
-                "name": "My Favorites: Movies"  # השם שיופיע מעל שורת הסרטים
+                "name": "My Favorites: Movies"
             },
             {
                 "id": "my_custom_catalog",
                 "type": "series",
-                "name": "My Favorites: TV Shows" # השם שיופיע מעל שורת הסדרות
+                "name": "My Favorites: TV Shows",
+                "extra": [
+                    {
+                      "name": "genre",
+                      "isRequired": False,
+                      "options": ["Action & Adventure", "Animation", "Drama", "Familie"]
+                    },
+                    {
+                        "name": "sort",
+                        "isRequired": False,
+                        "options": ["Newest First", "Oldest First", "Alphabetical"]
+                    }
+                ]
             }
         ]
     })
@@ -1458,6 +1461,20 @@ def catalog(content_type, catalog_id):
     if catalog_id == "my_custom_catalog":
         db_data = get_db_data_v2()
         db_data = sorted(db_data, key=lambda item : item.get("added_date", ""), reverse=True)
+        
+        selected_genre = request.args.get('genre')
+        selected_sort = request.args.get('sort', 'Newest First')
+        
+        if selected_genre:
+            db_data = [item for item in db_data if selected_genre in item.get("genres", [])]
+            
+        if selected_sort == "Newest First":
+            db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=True)
+        elif selected_sort == "Oldest First":
+            db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=False)
+        elif selected_sort == "Alphabetical":
+            db_data = sorted(db_data, key=lambda item: item.get("title").lower())
+        
         if content_type == "movie":
             movies = []
             for movie in db_data:
