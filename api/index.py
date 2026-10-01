@@ -1368,6 +1368,14 @@ def get_movie_info():
 @app.route('/api/sync/stremio', methods=['GET'])
 def add_media_from_stremio():
     try:
+        
+        response = requests.post(
+            UPSTASH_REDIS_REST_URL,
+            headers=headers,
+            json=["HGET", "stremio", "ignor_list"]
+        )
+        ignor_list = json.loads(response.json()['result'])
+        
         body = {
             "authKey": STREMIO_AUTHKEY,
             "collection": "libraryItem",
@@ -1395,9 +1403,16 @@ def add_media_from_stremio():
                     id = item_tmdb.get("id") or ""
                     media_type = item_tmdb.get("media_type") or ""
             if media_type and id:
-                if not check_if_item_in_the_list(id, media_type):
+                if f"{media_type}:{id}" not in ignor_list:
+                    ignor_list.append(f"{media_type}:{id}")
                     get_data_for_add_item(id, media_type)
                 
+        requests.post(
+            UPSTASH_REDIS_REST_URL,
+            headers=headers,
+            json=["HSET", "stremio", "ignor_list", json.dumps(ignor_list)]
+        )
+
         return jsonify({"success": True, "message": f"successfly sync the data"}), 500
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
