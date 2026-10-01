@@ -318,76 +318,29 @@ def remove_item ():
     )
     return jsonify({"message": f"Removed item with an id of {movie_id}"}), 200
 
-
-
-@app.route('/api/add', methods=['POST'])
-def add_item():
-    
-    try:
-        body = request.get_json() or {}
-
-        authorized = is_authorized(body)
-        if not authorized:
-            return jsonify({'error': 'Unauthorized'}), 401
-
-        media_id = body.get("mediaId")
-        media_type = body.get("mediaType")
-        if media_id and str(media_id).isdigit():
-            media_id = int(media_id)
-        if not media_id or not str(media_id).isdigit() or not (media_type == "tv" or media_type == "movie" or media_type == "game"):
-            return jsonify({"error": "Bad Request", "message": "One or more missing required parameters"}), 400
-
-
-        db_data = get_db_data_v2()
-        for item in db_data:
-            if item.get("media_type") == media_type and item.get("id") == media_id:
-                return jsonify({"error": "Unprocessable Entity", "message": "Cannot add item because it is already exists."}), 422
-            
-        if media_type == "game":
-            game = get_game_by_id(media_id)
-            db_data.append(game)
-            update_db(db_data)
-            return jsonify({"success": "true", "message": "Added the media"}), 200
-
-
+def get_data_for_add_item(media_id, media_type):
 
         movie_response = requests.get(f"https://api.themoviedb.org/3/{media_type}/{media_id}?api_key={TMDB_API_KEY}")
-        if movie_response.status_code == 404:
-            return jsonify({"error": "No results"}), 404
-
-        # justwatch_data_url = f"https://api.themoviedb.org/3/{media_type}/{media_id}/watch/providers?api_key={TMDB_API_KEY}"
-        # response = requests.get(justwatch_data_url)
-        # digital = False
-        # watch_data = {}
-        # if response.status_code == 200:
-        #         watch_data = response.json()
-        # if watch_data.get("results", []):
-        #     digital = True
-            
         digital = check_if_digital(media_id)
-            
-            
-        
         movie_data = movie_response.json()
-
         raw_movie_data = movie_response.json()
-        
+
         movie_data = {
-                "id": movie_data.get("id"),
-                "title": movie_data.get("title") or movie_data.get("name"),
-                "poster_path": movie_data.get("poster_path"),
-                "overview": movie_data.get("overview"),
-                "runtime": movie_data.get("runtime"),
-                "status": movie_data.get("status"),
-                "genres": movie_data.get("genres"),
-                "media_type": "movie" if movie_data.get("title") else "tv",
-                "last_notification": None,
-                "digital": digital,
-                "imdb_id": None,
-                "tvdb_id": None,
-                "notifications": True,
-                "notifications_enabled_at": datetime.now(timezone.utc).isoformat()
-            }
+            "id": movie_data.get("id"),
+            "title": movie_data.get("title") or movie_data.get("name"),
+            "poster_path": movie_data.get("poster_path"),
+            "overview": movie_data.get("overview"),
+            "runtime": movie_data.get("runtime"),
+            "status": movie_data.get("status"),
+            "genres": movie_data.get("genres"),
+            "media_type": "movie" if movie_data.get("title") else "tv",
+            "last_notification": None,
+            "digital": digital,
+            "imdb_id": None,
+            "tvdb_id": None,
+            "notifications": True,
+            "notifications_enabled_at": datetime.now(timezone.utc).isoformat()
+        }
         if media_type == "movie":
             movie_data["release_date"] = raw_movie_data.get("release_date", None)
             movie_data["runtime"] = raw_movie_data.get("runtime", None)
@@ -422,19 +375,51 @@ def add_item():
                 if response.status_code == 200:
                     tvmaze_data = response.json()
                     movie_data["tvmaze_id"] = tvmaze_data.get("id")
+                    
 
-                    
-                    
                     
         now_iso = datetime.now(timezone.utc).isoformat()
         movie_data["added_date"] = now_iso
-              
         
-        db_data.append(movie_data)
-        update_db(db_data)
-        # response = requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["SET", "watchlist", json.dumps(db_data)])
-        return jsonify({"success": "true", "message": "Added the media"}), 200
-        # if response.status_code == 200:
+        update_one_item_in_db(movie_data)
+        
+        return True
+
+@app.route('/api/add', methods=['POST'])
+def add_item():
+    
+    try:
+        body = request.get_json() or {}
+
+        authorized = is_authorized(body)
+        if not authorized:
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        media_id = body.get("mediaId")
+        media_type = body.get("mediaType")
+        if media_id and str(media_id).isdigit():
+            media_id = int(media_id)
+        if not media_id or not str(media_id).isdigit() or not (media_type == "tv" or media_type == "movie" or media_type == "game"):
+            return jsonify({"error": "Bad Request", "message": "One or more missing required parameters"}), 400
+
+        
+
+        db_data = get_db_data_v2()
+        for item in db_data:
+            if item.get("media_type") == media_type and item.get("id") == media_id:
+                return jsonify({"error": "Unprocessable Entity", "message": "Cannot add item because it is already exists."}), 422
+            
+        if media_type == "game":
+            game = get_game_by_id(media_id)
+            db_data.append(game)
+            update_db(db_data)
+            return jsonify({"success": "true", "message": "Added the media"}), 200
+
+
+        success = get_data_for_add_item(media_id, media_type)
+        if success:
+            return jsonify({"success": "true", "message": "Added the media"}), 200
+        return jsonify({"error": "something went wrong", "message": "something went wrong while adding the media"}), 500
 
         # return jsonify({"error": "something went wrong", "message": "something went wrong while adding the media"}), 500
     except (TypeError, requests.exceptions.RequestException):
