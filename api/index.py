@@ -287,7 +287,15 @@ def get_game_by_id(id):
             "notified_content_ids": []
         }
     return(custom_data)
+
+def check_if_item_in_the_list(media_id, media_type):
+    db_data = get_db_data_v2()
+    for item in db_data:
+        if item.get("media_type") == media_type and item.get("id") == media_id:
+            return True
+    return False
     
+
 @app.route('/api/get-data', methods=['POST'])
 def get_watchlist():
     body = request.get_json() or {}
@@ -1387,7 +1395,8 @@ def add_media_from_stremio():
                     id = item_tmdb.get("id") or ""
                     media_type = item_tmdb.get("media_type") or ""
             if media_type and id:
-                get_data_for_add_item(id, media_type)
+                if not check_if_item_in_the_list(id, media_type):
+                    get_data_for_add_item(id, media_type)
                 
         return jsonify({"success": True, "message": f"successfly sync the data"}), 500
     except Exception as e:
