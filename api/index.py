@@ -1086,145 +1086,146 @@ def game_checker():
     
 @app.route('/api/notification/game', methods=['POST'])
 def send_game_notification():
-    
-    auth_header = request.headers.get("authorization", "")
-    if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    body = request.get_json() or {}
-    if body.get("release_dates"):
-        
-        item = get_item_data_from_db(body)
-        item["released"] = True
-        item["status"] = "Released"
-        update_one_item_in_db(item)
-        
-        name = body.get("title")
-        poster = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{body.get("poster_path", "")}.jpg"
-        
-        developer = []
-        involved_companies = body.get('involved_companies', [])
-        for companie in involved_companies:
-            if companie.get("developer"):
-                developer.append(companie.get("company", {}).get("name", ""))
-        developer = ", ".join(developer)
-        
-        release_dates = "Error"
-        raw_release_date = body.get('release_dates')[0]
-        
-        if raw_release_date.get('date'):
-            release_dates = datetime.fromtimestamp(raw_release_date.get('date'), timezone.utc).date().isoformat()
-            
-        platforms = []
-        if body.get("platforms"):
-            for platform in body.get("platforms"):
-               platforms.append(platform.get("abbreviation"))
-            platforms = ", ".join(platforms)
-        else:
-            platforms = "Unknown(?)"
-            
-        genres = []
-        if body.get("genres"):
-            for genre in body.get("genres"):
-                genres.append(genre.get("name", ""))
-            genres = ", ".join(genres)
-        else:
-            genres = "Unknown(?)"
-            
-        discord_msg = {
-          "content": "🎮 **New Game Released!**",
-          "embeds": [
-            {
-              "title": name,
-              "description": "Now available to play.",
-              "color": 15418782,
-              "fields": [
+    try:
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        body = request.get_json() or {}
+        if body.get("release_dates"):
+
+            item = get_item_data_from_db(body)
+            item["released"] = True
+            item["status"] = "Released"
+            update_one_item_in_db(item)
+
+            name = body.get("title")
+            poster = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{body.get("poster_path", "")}.jpg"
+
+            developer = []
+            involved_companies = body.get('involved_companies', [])
+            for companie in involved_companies:
+                if companie.get("developer"):
+                    developer.append(companie.get("company", {}).get("name", ""))
+            developer = ", ".join(developer)
+
+            release_dates = "Error"
+            raw_release_date = body.get('release_dates')[0]
+
+            if raw_release_date.get('date'):
+                release_dates = datetime.fromtimestamp(raw_release_date.get('date'), timezone.utc).date().isoformat()
+
+            platforms = []
+            if body.get("platforms"):
+                for platform in body.get("platforms"):
+                   platforms.append(platform.get("abbreviation"))
+                platforms = ", ".join(platforms)
+            else:
+                platforms = "Unknown(?)"
+
+            genres = []
+            if body.get("genres"):
+                for genre in body.get("genres"):
+                    genres.append(genre.get("name", ""))
+                genres = ", ".join(genres)
+            else:
+                genres = "Unknown(?)"
+
+            discord_msg = {
+              "content": "🎮 **New Game Released!**",
+              "embeds": [
                 {
-                  "name": "Release Date",
-                  "value": f"`{release_dates}`",
-                  "inline": True
-                },
-                {
-                  "name": "Developer",
-                  "value": developer or "Unknown(?)",
-                  "inline": True
-                },
-                {
-                  "name": "Platforms",
-                  "value": platforms
-                },
-                {
-                  "name": "Genres",
-                  "value": genres
+                  "title": name,
+                  "description": "Now available to play.",
+                  "color": 15418782,
+                  "fields": [
+                    {
+                      "name": "Release Date",
+                      "value": f"`{release_dates}`",
+                      "inline": True
+                    },
+                    {
+                      "name": "Developer",
+                      "value": developer or "Unknown(?)",
+                      "inline": True
+                    },
+                    {
+                      "name": "Platforms",
+                      "value": platforms
+                    },
+                    {
+                      "name": "Genres",
+                      "value": genres
+                    }
+                  ],
+                  "footer": {
+                    "text": "Game Release Notification"
+                  },
+                  "timestamp": datetime.now(timezone.utc).isoformat(),
+                  "image": {
+                    "url": poster
+                  }
                 }
               ],
-              "footer": {
-                "text": "Game Release Notification"
-              },
-              "timestamp": datetime.now(timezone.utc).isoformat(),
-              "image": {
-                "url": poster
-              }
+              "attachments": []
             }
-          ],
-          "attachments": []
-        }
-        if item.get("notifications"):
-            requests.post(DISCORD_URL, json=discord_msg)
+            if item.get("notifications"):
+                requests.post(DISCORD_URL, json=discord_msg)
 
-    elif body.get("content"):
-        content = body.get("content")[0]
-        
-        name = body.get("title")
-        content_type = content.get("game_type", {}).get('type')
-        release_date = datetime.fromtimestamp(content.get("first_release_date"), timezone.utc).date().isoformat()
-        expansion_title = content.get('name') or "Unknown(?)"
-        poster = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{(content.get('cover') or {}).get('image_id') or content.get('cover')}.jpg"
-    
-        
-        discord_msg = {
-          "content": f"🧩 **New {content_type or "DLC / Expansion"} Released!**",
-          "embeds": [
-            {
-              "title": name,
-              "description": "New downloadable content is now available.",
-              "color": 5814783,
-              "fields": [
+        elif body.get("content"):
+            content = body.get("content")[0]
+
+            name = body.get("title")
+            content_type = content.get("game_type", {}).get('type')
+            release_date = datetime.fromtimestamp(content.get("first_release_date"), timezone.utc).date().isoformat()
+            expansion_title = content.get('name') or "Unknown(?)"
+            poster = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{(content.get('cover') or {}).get('image_id') or content.get('cover')}.jpg"
+
+
+            discord_msg = {
+              "content": f"🧩 **New {content_type or "DLC / Expansion"} Released!**",
+              "embeds": [
                 {
-                  "name": "Type",
-                  "value": f"`{content_type or "Unknown(?)"}`",
-                  "inline": True
-                },
-                {
-                  "name": "Release Date",
-                  "value": f"`{release_date}`",
-                  "inline": True
-                },
-                {
-                  "name": "Expansion Title",
-                  "value": f"**{expansion_title}**"
+                  "title": name,
+                  "description": "New downloadable content is now available.",
+                  "color": 5814783,
+                  "fields": [
+                    {
+                      "name": "Type",
+                      "value": f"`{content_type or "Unknown(?)"}`",
+                      "inline": True
+                    },
+                    {
+                      "name": "Release Date",
+                      "value": f"`{release_date}`",
+                      "inline": True
+                    },
+                    {
+                      "name": "Expansion Title",
+                      "value": f"**{expansion_title}**"
+                    }
+                  ],
+                  "footer": {
+                    "text": "Game DLC Notification"
+                  },
+                  "timestamp": datetime.now(timezone.utc).isoformat(),
+                  "thumbnail": {
+                    "url": poster
+                  }
                 }
               ],
-              "footer": {
-                "text": "Game DLC Notification"
-              },
-              "timestamp": datetime.now(timezone.utc).isoformat(),
-              "thumbnail": {
-                "url": poster
-              }
+              "attachments": []
             }
-          ],
-          "attachments": []
-        }
-        if item.get("notifications"):
-            requests.post(DISCORD_URL, json=discord_msg)
-    else:
-        return jsonify({"success": "false", "message": "game notification was not send"}), 200
+            if item.get("notifications"):
+                requests.post(DISCORD_URL, json=discord_msg)
+        else:
+            return jsonify({"success": "false", "message": "game notification was not send"}), 200
 
 
-    
-    return jsonify({"success": "true", "message": "game notification send successfully"}), 200
 
+        return jsonify({"success": "true", "message": "game notification send successfully"}), 200
+    except Exception as e:
+        return jsonify({"success": "fales", "message": f"{e}"}), 200
 
 @app.route('/api/toggle/notification', methods=['POST'])
 def toggle_notification():
@@ -1249,6 +1250,19 @@ def toggle_notification():
     else:
         return jsonify({"success": "false", "notification_status": "unknown"}), 500 
         
+
     
+# @app.route('/api/info/movie', methods=['POST'])
+# def get_movie_info():
     
+#     body = request.get_json() or {}
+#     authorized = is_authorized(body)
+#     if not authorized:
+#         return jsonify({'error': 'Unauthorized'}), 401
+    
+#     movie_id = body.get("movieId") or ""
+#     if not movie_id:
+#         return jsonify({"error": "misiing id"})
+    
+#     response = requests.get(f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&append_to_response=videos,release_dates,keywords")
     
