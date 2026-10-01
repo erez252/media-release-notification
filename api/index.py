@@ -17,6 +17,7 @@ QSTASH_TOKEN = os.environ.get('QSTASH_TOKEN')
 QSTASH_URL = os.environ.get('QSTASH_URL')
 IGDB_CLIENT_ID = os.environ.get('IGDB_CLIENT_ID')
 IGDB_ACCESS_TOKEN = os.environ.get('IGDB_ACCESS_TOKEN')
+STREMIO_AUTHKEY = os.environ.get('STREMIO_AUTHKEY')
 
 headers = {"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"}
 qstash_header= {"Authorization": f"Bearer {QSTASH_TOKEN}"}
