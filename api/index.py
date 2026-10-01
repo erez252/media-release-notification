@@ -1100,7 +1100,7 @@ def send_game_notification():
             update_one_item_in_db(item)
 
             name = body.get("title")
-            poster = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{body.get("poster_path", "")}.jpg"
+            poster = f"https://images.igdb.com/igdb/image/upload/t_original/{body.get("poster_path", "")}.jpg"
 
             developer = []
             involved_companies = body.get('involved_companies', [])
@@ -1227,7 +1227,7 @@ def send_game_notification():
 
         return jsonify({"success": "true", "message": "game notification send successfully"}), 200
     except Exception as e:
-        return jsonify({"success": "fales", "message": f"{e}"}), 500
+        return jsonify({"success": "false", "message": f"{e}"}), 500
 
 @app.route('/api/toggle/notification', methods=['POST'])
 def toggle_notification():
@@ -1254,17 +1254,113 @@ def toggle_notification():
         
 
     
-# @app.route('/api/info/movie', methods=['POST'])
-# def get_movie_info():
+@app.route('/api/info/movie', methods=['POST'])
+def get_movie_info():
     
-#     body = request.get_json() or {}
-#     authorized = is_authorized(body)
-#     if not authorized:
-#         return jsonify({'error': 'Unauthorized'}), 401
-    
-#     movie_id = body.get("movieId") or ""
-#     if not movie_id:
-#         return jsonify({"error": "misiing id"})
-    
-#     response = requests.get(f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&append_to_response=videos,release_dates,keywords")
-    
+    body = request.get_json() or {}
+    authorized = is_authorized(body)
+    if not authorized:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        movie_id = body.get("movieId") or ""
+        if not movie_id:
+            return jsonify({"error": "misiing id"})
+
+        response = requests.get(f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&append_to_response=keywords,release_dates,videos")
+        data = response.json()
+
+        movie = {
+            "title": data.get("title", ""),
+            "poster_path": data.get("poster_path", ""),
+            "backdrop_path": data.get("backdrop_path", ""),
+            "release_date": data.get("release_date", ""),
+            "runtime": data.get("runtime", 0),
+            "vote_average": data.get("vote_average", 0.0),
+            "vote_count": data.get("vote_count", 0),
+            "status": data.get("status", ""),
+            "budget": data.get("budget", 0),
+            "revenue": data.get("revenue", 0),
+            "genres": data.get("genres", []),
+            "tagline": data.get("tagline", ""),
+            "overview": data.get("overview", ""),
+            "production_companies": data.get("production_companies", []),
+            "origin_country": data.get("origin_country", []),
+            "original_language": data.get("original_language", ""),
+            "homepage": data.get("homepage", ""),
+            "id": data.get("id", ""),
+            "imdb_id": data.get("imdb_id", ""),
+            "keywords": (data.get("keywords") or {}).get("keywords") or [],
+        }
+
+        # digital and expected_on_digital if not digital
+        next_digital_date = "Unknown(?)"
+        digital = False
+        try:
+            dates = (data.get("release_dates") or {}).get('results') or []
+            digital_dates = []
+            if dates:
+                for country in dates:
+                    if country.get('release_dates', []):
+                        for date in country['release_dates']:
+                            if date['type'] >= 4:
+                                digital_dates.append(date)
+
+
+            if digital_dates:
+                for digital_date in digital_dates:
+                    if digital_date.get('release_date') and datetime.fromisoformat(digital_date.get('release_date')) <= datetime.now(timezone.utc):
+                        digital = True
+                        break
+                if digital:
+                    movie["digital"] = True
+                else:
+                    movie["digital"] = False
+                    # gets the first date
+                    next_digital_date = sorted(digital_dates, key=lambda date: date['release_date'])[0]
+                    # convert the first date in to a date
+                    next_digital_date = datetime.fromisoformat(next_digital_date["release_date"]).date().isoformat()
+                    # add to the movie obj
+                    movie["expected_on_digital"] = next_digital_date
+        except Exception as e:
+            ...
+        movie["digital"] = digital
+
+        # videos 
+        videos = (data.get("videos") or {}).get("results") or []
+        if videos:
+            trailers = [video for video in videos if video["site"] == 'YouTube' and video["type"] == 'Trailer'] or []
+            if not trailers:
+                teasers = [video for video in videos if video["site"] == 'YouTube' and video["type"] == 'Teaser'] or []
+                if teasers:
+                    teasers = sorted(teasers, key=lambda vid: vid["published_at"])
+                    movie["teasers"] = teasers
+            else:
+                trailers = sorted(trailers, key=lambda vid: vid.get("published_at"))
+                movie["trailers"] = trailers
+
+        response = requests.get(f"https://api.themoviedb.org/3/movie/{movie_id}/watch/providers?api_key={TMDB_API_KEY}")
+
+        providers_results = response.json().get('results') or {}
+        providers_data = {}
+        if providers_results:
+            print(providers_results)
+            origin_country = data.get("origin_country")
+            if origin_country:
+                origin_country = origin_country[0]
+            if origin_country:
+                origin_country_data = providers_results.get(origin_country) or {}
+                if origin_country_data:
+                    providers_data[origin_country] = origin_country_data
+            if origin_country != "US":
+                us_data = providers_results.get("US") or {}
+                if us_data:
+                    providers_data["US"] = us_data
+
+            if providers_data: 
+                movie["watch_providers"] = providers_data
+
+
+        return jsonify(movie), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": f"{e}"}), 500
