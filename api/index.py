@@ -1455,7 +1455,7 @@ def manifest():
     
 @app.route('/api/catalog/<string:content_type>/<string:catalog_id>.json', methods=['GET'])
 def catalog(content_type, catalog_id):
-    if catalog_id == "my_personal_list":
+    if catalog_id == "my_custom_catalog":
         db_data = get_db_data_v2()
         if content_type == "movie":
             poster_path = movie.get("poster_path")
