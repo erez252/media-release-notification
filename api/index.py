@@ -1169,6 +1169,7 @@ def send_game_notification():
               ],
               "attachments": []
             }
+            item = get_item_data_from_db(body)
             if item.get("notifications"):
                 requests.post(DISCORD_URL, json=discord_msg)
 
@@ -1216,6 +1217,7 @@ def send_game_notification():
               ],
               "attachments": []
             }
+            item = get_item_data_from_db(body)
             if item.get("notifications"):
                 requests.post(DISCORD_URL, json=discord_msg)
         else:
