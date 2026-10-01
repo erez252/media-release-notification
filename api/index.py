@@ -1476,11 +1476,11 @@ def catalog(content_type, catalog_id):
             selected_option = request.args.get('genre', 'Sort: Newest First')
                     
                     
-            if selected_option == "Newest First":
+            if selected_option == "Sort: Newest First":
                 db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=True)
-            elif selected_option == "Oldest First":
+            elif selected_option == "Sort: Oldest First":
                 db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=False)
-            elif selected_option == "Alphabetical":
+            elif selected_option == "Sort: Alphabetical":
                 db_data = sorted(db_data, key=lambda item: item.get("title").lower())
             else:
                 filtered_data = []
