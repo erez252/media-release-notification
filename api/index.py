@@ -1458,6 +1458,7 @@ def catalog(content_type, catalog_id):
     if catalog_id == "my_personal_list":
         db_data = get_db_data_v2()
         if content_type == "movie":
+            poster_path = movie.get("poster_path")
             movies = []
             for movie in db_data:
                 if movie["media_type"] == "movie":
@@ -1465,18 +1466,19 @@ def catalog(content_type, catalog_id):
                         "id": f"tmdb:{movie['id']}", 
                         "type": "movie",
                         "name": f"{movie['title']}",
-                        "poster": f"https://image.tmdb.org/t/p/w342{movie.get("poster_path")}"
+                        "poster": f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else "https://placehold.co"
                         }) 
             return jsonify({"metas": movies})
         if content_type == "series":
             shows = []
             for show in db_data:
+                poster_path = show.get("poster_path")
                 if show["media_type"] == "tv":
                     shows.append({
                         "id": f"tmdb:{show['id']}",
                         "type": "series",
                         "name": f"{show['title']}",
-                        "poster": f"https://image.tmdb.org/t/p/w342{show.get("poster_path")}"
+                        "poster": f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else "https://placehold.co"
                     })
             return jsonify({"metas": shows})
         
