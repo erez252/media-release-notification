@@ -1416,3 +1416,39 @@ def add_media_from_stremio():
         return jsonify({"success": True, "message": f"successfly sync the data"}), 500
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
+    
+    
+@app.route('/api/manifest.json', methods=['GET'])
+def manifest():
+    return jsonify({
+        # 1. מזהה ייחודי (שנה את "yourname" לשם המשתמש שלך)
+        "id": "com.erez225.mypersonaltmdblist", 
+        
+        # 2. גרסת התוסף (נוח למעקב אם תשנה הגדרות בעתיד)
+        "version": "1.0.0", 
+        
+        # 3. השם שיופיע בסטרימיו
+        "name": "My Personal TMDB Catalog", 
+        
+        # 4. תיאור קצר
+        "description": "Personal movie and series list served from Vercel serverless function",
+        
+        # הגדרות מערכת קבועות שסטרימיו צריך:
+        "resources": ["catalog"],
+        "types": ["movie", "series"],
+        "idPrefixes": ["tmdb"],
+        
+        # 5. השורות (Catalogs) שיופיעו במסך הבית של סטרימיו
+        "catalogs": [
+            {
+                "id": "my_custom_catalog",
+                "type": "movie",
+                "name": "My Favorites: Movies"  # השם שיופיע מעל שורת הסרטים
+            },
+            {
+                "id": "my_custom_catalog",
+                "type": "series",
+                "name": "My Favorites: TV Shows" # השם שיופיע מעל שורת הסדרות
+            }
+        ]
+    })
