@@ -1351,3 +1351,40 @@ def get_movie_info():
         return jsonify(movie), 200
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
+
+
+@app.route('/api/sync/stremio', methods=['GET'])
+def add_media_from_stremio():
+    try:
+        body = {
+            "authKey": STREMIO_AUTHKEY,
+            "collection": "libraryItem",
+            "all": True
+        }
+        response = requests.post("https://api.strem.io/api/datastoreGet", json=body, headers=stremio_headers)
+
+        data = response.json()
+        result = data.get("result") or []
+        sorted_list = sorted(result, key=lambda item: item['_mtime'], reverse=True)
+        current_libery = [item for item in sorted_list if not item.get('removed')]
+        history = [item for item in sorted_list if item.get('state').get('timesWatched')]
+        watched_today = [item for item in history if datetime.fromisoformat(item.get('_mtime')).date() == datetime.now(timezone.utc).date()]
+        print([item.get('name') for item in watched_today])
+        # print(sorted_list[0])
+        for item in watched_today:
+            id = ""
+            media_type = ""
+            if (item.get('_id', "")).startswith("tt"):
+                response = requests.get(f"https://api.themoviedb.org/3/find/{item.get('_id')}?external_source=imdb_id&api_key={TMDB_API_KEY}")
+                item_tmdb = response.json() or {}
+                item_tmdb = item_tmdb.get("movie_results") or item_tmdb.get("movie_results") or item_tmdb.get("tv_results") or item_tmdb.get("tv_episode_results") or item_tmdb.get("tv_season_results") or {}
+                if item_tmdb:
+                    item_tmdb = item_tmdb[0]
+                    id = item_tmdb.get("id") or ""
+                    media_type = item_tmdb.get("media_type") or ""
+            if media_type and id:
+                get_data_for_add_item(id, media_type)
+                return jsonify({"success": True, "message": f"successfly sync the data"}), 500
+                
+    except Exception as e:
+        return jsonify({"success": False, "message": f"{e}"}), 500
