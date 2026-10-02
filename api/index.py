@@ -1340,6 +1340,37 @@ def get_movie_info():
             else:
                 trailers = sorted(trailers, key=lambda vid: vid.get("published_at"))
                 movie["trailers"] = trailers
+                
+                
+        credits = data.get("credits") or {}
+        if credits:
+            cast = credits.get("cast") or []
+            cast = [actor for actor in cast if actor.get("known_for_department") == "Acting"]
+            if cast:
+                new_cast = []
+                for actor in cast[:30]:
+                    new_cast.append({
+                        'id': actor.get("id"),
+                        'name': actor.get("name"),
+                        'profile_path': actor.get("profile_path"),
+                        'character': actor.get("character")
+                    })
+                movie["cast"] = new_cast
+        
+            crew = credits.get("crew") or []
+            if crew:
+                director = [member for member in crew if member.get("job", "") == "Director"]
+                directors = []
+                if director:
+                    for person in director:
+                        directors.append({
+                            'id': person.get("id"),
+                            'name': person.get("name"),
+                            'name': person.get("name"),
+                            'profile_path': person.get("profile_path"),
+                        })
+                    if directors:
+                        movie["directors"] = directors
 
         response = requests.get(f"https://api.themoviedb.org/3/movie/{movie_id}/watch/providers?api_key={TMDB_API_KEY}")
 
@@ -1497,7 +1528,7 @@ def get_tv_info():
         if show.get("tvmaze_id"):
             print(show.get("tvmaze_id"))
 
-            response = requests.get(f"https://api.tvmaze.com/shows/{show.get("tvmaze_id")}/episodes")
+            response = requests.get(f"https://api.tvmaze.com/shows/{show.get("tvmaze_id")}/episodes?specials=1")
             if response.json():
                 show["episodes"] = response.json()
 
@@ -1572,7 +1603,7 @@ def stremio_sync():
             headers=headers,
             json=["HSET", "stremio", "ignor_list", json.dumps(ignor_list)]
         )
-        return jsonify({"success": True, "message": f"successfly sync the data"}), 200
+        return jsonify({"success": True, "message": f"successfully sync the data"}), 200
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
     
