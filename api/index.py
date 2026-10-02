@@ -1369,8 +1369,12 @@ def get_movie_info():
 
 
 @app.route('/api/sync/stremio', methods=['GET'])
-def add_media_from_stremio():
+def stremio_sync():
     try:
+        
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+            return jsonify({'error': 'Unauthorized'}), 401
         
         response = requests.post(
             UPSTASH_REDIS_REST_URL,
@@ -1378,7 +1382,7 @@ def add_media_from_stremio():
             json=["HGET", "stremio", "ignor_list"]
         )
         ignor_list = json.loads(response.json()['result'])
-        
+        db_data = get_db_data_v2()
         body = {
             "authKey": STREMIO_AUTHKEY,
             "collection": "libraryItem",
@@ -1388,35 +1392,48 @@ def add_media_from_stremio():
 
         data = response.json()
         result = data.get("result") or []
-        sorted_list = sorted(result, key=lambda item: item['_mtime'], reverse=True)
-        current_libery = [item for item in sorted_list if not item.get('removed')]
-        history = [item for item in sorted_list if item.get('state').get('timesWatched')]
-        watched_today = [item for item in history if datetime.fromisoformat(item.get('_mtime')).date() == datetime.now(timezone.utc).date()]
-        print([item.get('name') for item in watched_today])
-        # print(sorted_list[0])
-        for item in watched_today:
+        items_to_consider = [item for item in result if ((not item.get('removed')) or item.get('state').get('timesWatched')) and (item.get('type') == "movie" or item.get('type') == "series")]
+        for item in items_to_consider:
             id = ""
+            ignor_list_id = ""
             media_type = ""
-            if (item.get('_id', "")).startswith("tt"):
+            if item.get("_id").startswith("tmdb:"):
+                id = item.get('_id').split(":")[1]
+                if item.get('type') == "movie":
+                    ignor_list_id = f"tmdb:movie:{id}"
+                    media_type = "movie"
+                elif item.get('type') == "series":
+                    ignor_list_id = f"tmdb:tv:{id}"
+                    media_type = "tv"
+            elif item.get("_id").startswith("tt") and item.get("_id") not in ignor_list:
                 response = requests.get(f"https://api.themoviedb.org/3/find/{item.get('_id')}?external_source=imdb_id&api_key={TMDB_API_KEY}")
+                time.sleep(0.1)
                 item_tmdb = response.json() or {}
                 item_tmdb = item_tmdb.get("movie_results") or item_tmdb.get("movie_results") or item_tmdb.get("tv_results") or item_tmdb.get("tv_episode_results") or item_tmdb.get("tv_season_results") or {}
                 if item_tmdb:
                     item_tmdb = item_tmdb[0]
                     id = item_tmdb.get("id") or ""
                     media_type = item_tmdb.get("media_type") or ""
-            if media_type and id:
-                if f"{media_type}:{id}" not in ignor_list:
-                    ignor_list.append(f"{media_type}:{id}")
-                    get_data_for_add_item(id, media_type)
-                
+                    ignor_list_id = item.get("_id")
+
+            if id and ignor_list_id and media_type:
+                if ignor_list_id not in ignor_list:
+                    ignor_list.append(ignor_list_id)
+                    alrady_in_the_list = False
+                    for item in db_data:
+                        if item.get("media_type") == media_type and item.get("id") == id:
+                            alrady_in_the_list = True
+                            break
+                    if not alrady_in_the_list:
+                        get_data_for_add_item(id, media_type)
+
+
         requests.post(
             UPSTASH_REDIS_REST_URL,
             headers=headers,
             json=["HSET", "stremio", "ignor_list", json.dumps(ignor_list)]
         )
-
-        return jsonify({"success": True, "message": f"successfly sync the data"}), 500
+        return jsonify({"success": True, "message": f"successfly sync the data"}), 200
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
     
