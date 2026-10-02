@@ -754,7 +754,7 @@ def check_tv():
         new_episodes_all = []
         request_tvmaze = 10
         for show in db_data:
-            if show.get("media_type") == "tv" and show.get("tvmaze_id") and show.get("status") != "Ended" and (not show.get("last_checked") or datetime.fromisoformat(show.get("last_checked")).date() < datetime.now(timezone.utc).date()):
+            if show.get("media_type") == "tv" and show.get("tvmaze_id") and (not show.get("last_checked") or datetime.fromisoformat(show.get("last_checked")).date() < datetime.now(timezone.utc).date()):
 
                 if not request_tvmaze:
                     break
@@ -1367,6 +1367,145 @@ def get_movie_info():
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
 
+@app.route('/api/info/tv', methods=['POST'])
+def get_tv_info():
+    try:
+        body = request.get_json() or {}
+        authorized = is_authorized(body)
+        if not authorized:
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        tv_id = body.get("showId") or ""
+        if not tv_id:
+            return jsonify({"error": "misiing id"})
+
+        response = requests.get(f"https://api.themoviedb.org/3/tv/{tv_id}?api_key={TMDB_API_KEY}&append_to_response=keywords,release_dates,videos,credits")
+        data = response.json()
+        show = {
+            "title": data.get("name", ""),
+            "poster_path": data.get("poster_path", ""),
+            "backdrop_path": data.get("backdrop_path", ""),
+            "release_date": data.get("first_air_date", ""),
+            "last_air_date": data.get("last_air_date", ""),
+            "next_air_date": (data.get("next_episode_to_air") or {}).get("air_date", None),
+            "runtime": data.get("episode_run_time", 0),
+            "vote_average": data.get("vote_average", 0.0),
+            "vote_count": data.get("vote_count", 0),
+            "status": data.get("status", ""),
+            "budget": data.get("budget", 0),
+            "revenue": data.get("revenue", 0),
+            "genres": data.get("genres", []),
+            "tagline": data.get("tagline", ""),
+            "overview": data.get("overview", ""),
+            "production_companies": data.get("production_companies", []),
+            "origin_country": data.get("origin_country", []),
+            "original_language": data.get("original_language", ""),
+            "homepage": data.get("homepage", ""),
+            "id": data.get("id", ""),
+            "imdb_id": data.get("imdb_id", ""),
+            "keywords": (data.get("keywords") or {}).get("keywords") or [],
+        }
+
+
+        # videos 
+        videos = (data.get("videos") or {}).get("results") or []
+        if videos:
+            trailers = [video for video in videos if video["site"] == 'YouTube' and video["type"] == 'Trailer'] or []
+            if not trailers:
+                teasers = [video for video in videos if video["site"] == 'YouTube' and video["type"] == 'Teaser'] or []
+                if teasers:
+                    teasers = sorted(teasers, key=lambda vid: vid["published_at"])
+                    show["teasers"] = teasers
+            else:
+                trailers = sorted(trailers, key=lambda vid: vid.get("published_at"))
+                show["trailers"] = trailers
+
+        credits = data.get("credits") or {}
+        if credits:
+            cast = credits.get("cast") or []
+            cast = [actor for actor in cast if actor.get("known_for_department") == "Acting"]
+            if cast:
+                new_cast = []
+                for actor in cast[:30]:
+                    new_cast.append({
+                        'id': actor.get("id"),
+                        'name': actor.get("name"),
+                        'profile_path': actor.get("profile_path"),
+                        'character': actor.get("character")
+                    })
+                show["cast"] = new_cast
+
+            crew = credits.get("crew") or []
+            if crew:
+                director = [member for member in crew if member.get("job", "") == "Director"]
+                directors = []
+                if director:
+                    for person in director:
+                        directors.append({
+                            'id': person.get("id"),
+                            'name': person.get("name"),
+                            'name': person.get("name"),
+                            'profile_path': person.get("profile_path"),
+                        })
+                    if directors:
+                        show["directors"] = directors
+
+
+        response = requests.get(f"https://api.themoviedb.org/3/tv/{tv_id}/watch/providers?api_key={TMDB_API_KEY}")
+        providers_results = response.json().get('results') or {}
+        providers_data = {}
+        if providers_results:
+            origin_country = data.get("origin_country")
+            if origin_country:
+                origin_country = origin_country[0]
+            if origin_country:
+                origin_country_data = providers_results.get(origin_country) or {}
+                if origin_country_data:
+                    providers_data[origin_country] = origin_country_data
+            if origin_country != "US":
+                us_data = providers_results.get("US") or {}
+                if us_data:
+                    providers_data["US"] = us_data
+
+            if providers_data: 
+                show["watch_providers"] = providers_data
+
+
+        response = requests.get(f"https://api.themoviedb.org/3/tv/{data.get('id')}/external_ids?api_key={TMDB_API_KEY}")
+        external_ids = response.json()
+        if external_ids.get("imdb_id"):
+            show["imdb_id"] = external_ids.get("imdb_id")
+        if external_ids.get("tvdb_id"):
+            show["tvdb_id"] = external_ids.get("tvdb_id")
+
+
+        tvmaze_id = body.get("tvmazeid") or ""
+        if not tvmaze_id:
+            if show.get("imdb_id"):
+                response = requests.get(f"https://api.tvmaze.com/lookup/shows?imdb={show.get('imdb_id')}")
+                if response.status_code == 200:
+                    tvmaze_data = response.json()
+                    show["tvmaze_id"] = tvmaze_data.get("id")
+            if not show.get("tvmaze_id") and show.get("tvdb_id", ""):
+                response = requests.get(f"https://api.tvmaze.com/lookup/shows?thetvdb={show.get('tvdb_id')}")
+                if response.status_code == 200:
+                    tvmaze_data = response.json()
+                    show["tvmaze_id"] = tvmaze_data.get("id")
+        else:
+            show["tvmaze_id"] = tvmaze_id
+
+        if show.get("tvmaze_id"):
+            print(show.get("tvmaze_id"))
+
+            response = requests.get(f"https://api.tvmaze.com/shows/{show.get("tvmaze_id")}/episodes")
+            if response.json():
+                show["episodes"] = response.json()
+
+        return jsonify(show), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": f"{e}"}), 500
+
+
 
 @app.route('/api/sync/stremio', methods=['POST'])
 def stremio_sync():
@@ -1534,7 +1673,7 @@ def catalog(content_type, catalog_id_path):
             if content_type == "movie":
                 movies = []
                 for movie in db_data:
-                    if movie["media_type"] == "movie":
+                    if movie.get("media_type") == "movie":
                         poster_path = movie.get("poster_path")
                         movies.append({
                             "id": f"tmdb:{movie['id']}", 
@@ -1559,6 +1698,7 @@ def catalog(content_type, catalog_id_path):
 
         return jsonify({"metas": []}), 404
     except Exception as e:
-        requests.post(DISCORD_URL, json={"error": e})
+        return jsonify({"success": False, "message": f"{e}"}), 500
+
         
             
