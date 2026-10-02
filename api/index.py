@@ -1368,7 +1368,7 @@ def get_movie_info():
         return jsonify({"success": False, "message": f"{e}"}), 500
 
 
-@app.route('/api/sync/stremio', methods=['GET'])
+@app.route('/api/sync/stremio', methods=['POST'])
 def stremio_sync():
     try:
         
