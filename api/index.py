@@ -1483,27 +1483,27 @@ def catalog(content_type, catalog_id_path):
 
 
             if selected_option == "Sort: Newest First":
-                db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=True)
+                db_data = sorted(db_data, key=lambda item: item.get("added_date", "") or "", reverse=True)
             elif selected_option == "Sort: Oldest First":
-                db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=False)
+                db_data = sorted(db_data, key=lambda item: item.get("added_date", "") or "", reverse=False)
             elif selected_option == "Sort: Alphabetical":
-                db_data = sorted(db_data, key=lambda item: item.get("title").lower())
+                db_data = sorted(db_data, key=lambda item: item.get("title").lower() or "")
             elif selected_option == "Sort: Release Date Newest First":
-                db_data = sorted(db_data, key=lambda item: item.get("release_date", ""), reverse=True)
+                db_data = sorted(db_data, key=lambda item: item.get("release_date", "") or "", reverse=True)
             elif selected_option == "Sort: Release Date Oldest First":
-                db_data = sorted(db_data, key=lambda item: item.get("release_date", ""))
+                db_data = sorted(db_data, key=lambda item: item.get("release_date", "") or "")
             elif selected_option == "Sort: First Air Date Newest First":
-                db_data = sorted(db_data, key=lambda item: item.get("first_air_date", ""), reverse=True)
+                db_data = sorted(db_data, key=lambda item: item.get("first_air_date", "") or "", reverse=True)
             elif selected_option == "Sort: First Air Date Oldest First":
-                db_data = sorted(db_data, key=lambda item: item.get("first_air_date", ""))
+                db_data = sorted(db_data, key=lambda item: item.get("first_air_date", "") or "")
             elif selected_option == "Sort: Last Air Date Newest First":
-                db_data = sorted(db_data, key=lambda item: item.get("last_air_date", ""), reverse=True)
+                db_data = sorted(db_data, key=lambda item: item.get("last_air_date", "") or "", reverse=True)
             elif selected_option == "Sort: Last Air Date Oldest First":
-                db_data = sorted(db_data, key=lambda item: item.get("last_air_date", ""))
+                db_data = sorted(db_data, key=lambda item: item.get("last_air_date", "") or "")
             elif selected_option == "Availble on Digital":
-                db_data = [item for item in db_data if item["digital"]]
+                db_data = [item for item in db_data if item.get("digital", "")]
             elif selected_option == "Not Availble on Digital":
-                db_data = [item for item in db_data if  not item["digital"]]
+                db_data = [item for item in db_data if not item.get("digital", "")]
             else:
                 filtered_data = []
                 for item in db_data:
