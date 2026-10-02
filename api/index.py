@@ -1479,8 +1479,6 @@ def catalog(content_type, catalog_id_path):
             db_data = get_db_data_v2()
             db_data = sorted(db_data, key=lambda item : item.get("added_date", ""), reverse=True)
 
-            selected_option = request.args.get('genre', 'Sort: Newest First')
-
 
             if selected_option == "Sort: Newest First":
                 db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=True)
