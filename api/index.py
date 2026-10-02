@@ -349,7 +349,7 @@ def get_data_for_add_item(media_id, media_type):
             "media_type": "movie" if movie_data.get("title") else "tv",
             "last_notification": None,
             "digital": digital,
-            "imdb_id": None,
+            "imdb_id": movie_data.get("imdb_id") or None,
             "tvdb_id": None,
             "notifications": True,
             "notifications_enabled_at": datetime.now(timezone.utc).isoformat()
@@ -868,7 +868,9 @@ def updater():
             if item.get('last_air_date', "") !=  data.get('last_air_date', ""):
                 item['last_air_date'] = data.get('last_air_date', "")
 
-
+            if data.get('imdb_id') and item.get('imdb_id', "") !=  data.get('imdb_id', ""):
+                item['imdb_id'] = data.get('imdb_id', "")
+                
             item['last_updated'] = datetime.now(timezone.utc).isoformat()
                 
             
@@ -1440,7 +1442,7 @@ def manifest():
                     {
                       "name": "genre",
                       "isRequired": False,
-                      "options": ["Sort: Newest First",  "Sort: Oldest First", "Sort: Alphabetical", "Adventure", "Animation", "Drama"]
+                      "options": ["Sort: Newest First",  "Sort: Oldest First", "Sort: Release Date Newest First", "Sort: Release Date Oldest First", "Sort: Alphabetical", "Availble on Digital", "Not Availble on Digital", "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History", "Horror", "Music", "Mystery", "Romance", "Science Fiction", "TV Movie", "Thriller", "War", "Western"]
                     }
                 ]
             },
@@ -1452,7 +1454,7 @@ def manifest():
                     {
                       "name": "genre",
                       "isRequired": False,
-                      "options": ["Sort: Newest First",  "Sort: Oldest First", "Sort: Alphabetical", "Action & Adventure", "Animation", "Drama", "Familie"]
+                      "options": ["Sort: Newest First",  "Sort: Oldest First", "Sort: Alphabetical", "Action & Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Kids", "Mystery", "News", "Reality", "Sci-Fi & Fantasy", "Soap", "Talk", "War & Politics", "Western"]
                     }
                 ]
             }
@@ -1486,6 +1488,14 @@ def catalog(content_type, catalog_id_path):
                 db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=False)
             elif selected_option == "Sort: Alphabetical":
                 db_data = sorted(db_data, key=lambda item: item.get("title").lower())
+            elif selected_option == "Sort: Release Date Newest First":
+                db_data = sorted(db_data, key=lambda item: item.get("release_date", ""), reverse=False)
+            elif selected_option == "Sort: Release Date Oldest First":
+                db_data = sorted(db_data, key=lambda item: item.get("release_date", ""))
+            elif selected_option == "Availble on Digital":
+                db_data = [item for item in db_data if item["digital"]]
+            elif selected_option == "Not Availble on Digital":
+                db_data = [item for item in db_data if  not item["digital"]]
             else:
                 filtered_data = []
                 for item in db_data:
