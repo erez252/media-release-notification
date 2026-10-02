@@ -1463,22 +1463,17 @@ def manifest():
 def catalog(content_type, catalog_id_path):
     try:
         
-        clean_path = catalog_id_path.replace(".json", "")
+        clean_path = urllib.parse.unquote(catalog_id_path.replace(".json", ""))
         
         catalog_id = clean_path
         selected_option = "Sort: Newest First"
         
         if "/" in clean_path:
-            parts = clean_path.split("/")
-            catalog_id = parts[0]
-            args_string = parts[1]
+            catalog_id, args_string = clean_path.split("/", 1)
         
             parsed_args = urllib.parse.parse_qs(args_string)
             if "genre" in parsed_args:
                 selected_option = parsed_args["genre"][0]
-            # if extra_arg.startswith("genre="):
-            #     raw_val = extra_arg.replace("genre=", "")
-            #     selected_option = urllib.parse.unquote(raw_val)
         
         if catalog_id == "my_custom_catalog":
             db_data = get_db_data_v2()
