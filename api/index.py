@@ -1471,11 +1471,14 @@ def catalog(content_type, catalog_id_path):
         if "/" in clean_path:
             parts = clean_path.split("/")
             catalog_id = parts[0]
-            extra_arg = parts[1]
+            args_string = parts[1]
         
-            if extra_arg.startswith("genre="):
-                raw_val = extra_arg.replace("genre=", "")
-                selected_option = urllib.parse.unquote(raw_val)
+            parsed_args = urllib.parse.parse_qs(args_string)
+            if "genre" in parsed_args:
+                selected_option = parsed_args["genre"][0]
+            # if extra_arg.startswith("genre="):
+            #     raw_val = extra_arg.replace("genre=", "")
+            #     selected_option = urllib.parse.unquote(raw_val)
         
         if catalog_id == "my_custom_catalog":
             db_data = get_db_data_v2()
