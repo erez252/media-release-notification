@@ -8,6 +8,7 @@ from flask_cors import CORS
 from datetime import date, datetime, timezone, timedelta
 app = Flask(__name__)
 CORS(app)  # Handles CORS preflight headers automatically
+import urllib.parse
 
 UPSTASH_REDIS_REST_URL = os.environ.get('UPSTASH_REDIS_REST_URL')
 UPSTASH_REDIS_REST_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
@@ -1458,9 +1459,24 @@ def manifest():
         ]
     })
     
-@app.route('/api/catalog/<string:content_type>/<string:catalog_id>.json', methods=['GET'])
-def catalog(content_type, catalog_id):
+@app.route('/api/catalog/<string:content_type>/<path:catalog_id_path>', methods=['GET'])
+def catalog(content_type, catalog_id_path):
     try:
+        
+        clean_path = catalog_id_path.replace(".json", "")
+        
+        catalog_id = clean_path
+        selected_option = "Sort: Newest First"
+        
+        if "/" in clean_path:
+            parts = clean_path.split("/")
+            catalog_id = parts[0]
+            extra_arg = parts[1]
+        
+        if extra_arg.startswith("genre="):
+            raw_val = extra_arg.replace("genre=", "")
+            selected_option = urllib.parse.unquote(raw_val)
+        
         if catalog_id == "my_custom_catalog":
             db_data = get_db_data_v2()
             db_data = sorted(db_data, key=lambda item : item.get("added_date", ""), reverse=True)
