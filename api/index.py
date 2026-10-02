@@ -1489,7 +1489,7 @@ def catalog(content_type, catalog_id_path):
             elif selected_option == "Sort: Alphabetical":
                 db_data = sorted(db_data, key=lambda item: item.get("title").lower())
             elif selected_option == "Sort: Release Date Newest First":
-                db_data = sorted(db_data, key=lambda item: item.get("release_date", ""), reverse=False)
+                db_data = sorted(db_data, key=lambda item: item.get("release_date", ""), reverse=True)
             elif selected_option == "Sort: Release Date Oldest First":
                 db_data = sorted(db_data, key=lambda item: item.get("release_date", ""))
             elif selected_option == "Availble on Digital":
