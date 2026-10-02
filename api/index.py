@@ -1497,9 +1497,9 @@ def catalog(content_type, catalog_id_path):
             elif selected_option == "Sort: First Air Date Oldest First":
                 db_data = sorted(db_data, key=lambda item: item.get("first_air_date", "") or "")
             elif selected_option == "Sort: Last Air Date Newest First":
-                db_data = sorted(db_data, key=lambda item: item.get("last_air_date", "") or "", reverse=True)
+                db_data = sorted(db_data, key=lambda item: item.get("last_air_date") or "30000-01-01", reverse=True)
             elif selected_option == "Sort: Last Air Date Oldest First":
-                db_data = sorted(db_data, key=lambda item: item.get("last_air_date", "") or "")
+                db_data = sorted(db_data, key=lambda item: item.get("last_air_date") or "30000-01-01")
             elif selected_option == "Availble on Digital":
                 db_data = [item for item in db_data if item.get("digital", "")]
             elif selected_option == "Not Availble on Digital":
