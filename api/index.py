@@ -1454,7 +1454,7 @@ def manifest():
                     {
                       "name": "genre",
                       "isRequired": False,
-                      "options": ["Sort: Newest First",  "Sort: Oldest First", "Sort: Alphabetical", "Action & Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Kids", "Mystery", "News", "Reality", "Sci-Fi & Fantasy", "Soap", "Talk", "War & Politics", "Western"]
+                      "options": ["Sort: Newest First",  "Sort: Oldest First", "Sort: First Air Date Newest First", "Sort: First Air Date Oldest First", "Sort: Last Air Date Newest First", "Sort: Last Air Date Oldest First", "Sort: Alphabetical", "Action & Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Kids", "Mystery", "News", "Reality", "Sci-Fi & Fantasy", "Soap", "Talk", "War & Politics", "Western"]
                     }
                 ]
             }
@@ -1492,6 +1492,14 @@ def catalog(content_type, catalog_id_path):
                 db_data = sorted(db_data, key=lambda item: item.get("release_date", ""), reverse=True)
             elif selected_option == "Sort: Release Date Oldest First":
                 db_data = sorted(db_data, key=lambda item: item.get("release_date", ""))
+            elif selected_option == "Sort: First Air Date Newest First":
+                db_data = sorted(db_data, key=lambda item: item.get("first_air_date", ""), reverse=True)
+            elif selected_option == "Sort: First Air Date Oldest First":
+                db_data = sorted(db_data, key=lambda item: item.get("first_air_date", ""))
+            elif selected_option == "Sort: Last Air Date Newest First":
+                db_data = sorted(db_data, key=lambda item: item.get("last_air_date", ""), reverse=True)
+            elif selected_option == "Sort: Last Air Date Oldest First":
+                db_data = sorted(db_data, key=lambda item: item.get("last_air_date", ""))
             elif selected_option == "Availble on Digital":
                 db_data = [item for item in db_data if item["digital"]]
             elif selected_option == "Not Availble on Digital":
