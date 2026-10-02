@@ -1460,54 +1460,58 @@ def manifest():
     
 @app.route('/api/catalog/<string:content_type>/<string:catalog_id>.json', methods=['GET'])
 def catalog(content_type, catalog_id):
-    if catalog_id == "my_custom_catalog":
-        db_data = get_db_data_v2()
-        db_data = sorted(db_data, key=lambda item : item.get("added_date", ""), reverse=True)
-        
-        selected_option = request.args.get('genre', 'Sort: Newest First')
-                    
-                    
-        if selected_option == "Sort: Newest First":
-            db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=True)
-        elif selected_option == "Sort: Oldest First":
-            db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=False)
-        elif selected_option == "Sort: Alphabetical":
-            db_data = sorted(db_data, key=lambda item: item.get("title").lower())
-        else:
-            filtered_data = []
-            for item in db_data:
-                item_genres = item.get("genres", [])
-                genre_names = [g.get("name") for g in item_genres if g.get("name")]
-                if selected_option in genre_names:
-                    filtered_data.append(item)
-            db_data = filtered_data
+    try:
+        if catalog_id == "my_custom_catalog":
+            db_data = get_db_data_v2()
+            db_data = sorted(db_data, key=lambda item : item.get("added_date", ""), reverse=True)
 
+            selected_option = request.args.get('genre', 'Sort: Newest First')
+
+
+            if selected_option == "Sort: Newest First":
+                db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=True)
+            elif selected_option == "Sort: Oldest First":
+                db_data = sorted(db_data, key=lambda item: item.get("added_date", ""), reverse=False)
+            elif selected_option == "Sort: Alphabetical":
+                db_data = sorted(db_data, key=lambda item: item.get("title").lower())
+            else:
+                filtered_data = []
+                for item in db_data:
+                    item_genres = item.get("genres", [])
+                    genre_names = [g.get("name") for g in item_genres if g.get("name")]
+                    if selected_option in genre_names:
+                        filtered_data.append(item)
+                db_data = filtered_data
+
+
+            if content_type == "movie":
+                movies = []
+                for movie in db_data:
+                    if movie["media_type"] == "movie":
+                        poster_path = movie.get("poster_path")
+                        movies.append({
+                            "id": f"tmdb:{movie['id']}", 
+                            "type": "movie",
+                            "name": f"{movie['title']}",
+                            "poster": f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else "https://placehold.co"
+                            }) 
+                return jsonify({"metas": movies})
+            if content_type == "series":
+                shows = []
+                for show in db_data:
+                    poster_path = show.get("poster_path")
+                    if show["media_type"] == "tv":
+                        item_id = show.get("imdb_id") if show.get("imdb_id") else f"tmdb:{show.get('id')}"
+                        shows.append({
+                            "id": item_id,
+                            "type": "series",
+                            "name": f"{show.get('title') or show.get('name', 'Unknown')}",
+                            "poster": f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else "https://placehold.co"
+                        })
+                return jsonify({"metas": shows})
+
+        return jsonify({"metas": []}), 404
+    except Exception as e:
+        requests.post(DISCORD_URL, json={"error": e})
         
-        if content_type == "movie":
-            movies = []
-            for movie in db_data:
-                if movie["media_type"] == "movie":
-                    poster_path = movie.get("poster_path")
-                    movies.append({
-                        "id": f"tmdb:{movie['id']}", 
-                        "type": "movie",
-                        "name": f"{movie['title']}",
-                        "poster": f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else "https://placehold.co"
-                        }) 
-            return jsonify({"metas": movies})
-        if content_type == "series":
-            shows = []
-            for show in db_data:
-                poster_path = show.get("poster_path")
-                if show["media_type"] == "tv":
-                    item_id = show.get("imdb_id") if show.get("imdb_id") else f"tmdb:{show.get('id')}"
-                    shows.append({
-                        "id": item_id,
-                        "type": "series",
-                        "name": f"{show.get('title') or show.get('name', 'Unknown')}",
-                        "poster": f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else "https://placehold.co"
-                    })
-            return jsonify({"metas": shows})
-        
-    return jsonify({"metas": []}), 404
             
