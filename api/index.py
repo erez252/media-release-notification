@@ -1473,9 +1473,9 @@ def catalog(content_type, catalog_id_path):
             catalog_id = parts[0]
             extra_arg = parts[1]
         
-        if extra_arg.startswith("genre="):
-            raw_val = extra_arg.replace("genre=", "")
-            selected_option = urllib.parse.unquote(raw_val)
+            if extra_arg.startswith("genre="):
+                raw_val = extra_arg.replace("genre=", "")
+                selected_option = urllib.parse.unquote(raw_val)
         
         if catalog_id == "my_custom_catalog":
             db_data = get_db_data_v2()
