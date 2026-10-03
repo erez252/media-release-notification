@@ -478,7 +478,7 @@ def search_tmdb():
         game_results = get_game_results(movie_name)
         
         if not (movie_results or tv_results or game_results):
-            return jsonify({"error": "No results"}), 404
+            return jsonify({}), 200
         
         ordered_data = {}
         if movie_results:
