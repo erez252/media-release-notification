@@ -1269,7 +1269,7 @@ def get_movie_info():
         if not movie_id:
             return jsonify({"error": "misiing id"})
 
-        response = requests.get(f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&append_to_response=keywords,release_dates,videos")
+        response = requests.get(f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&append_to_response=keywords,release_dates,videos,credits")
         data = response.json()
 
         movie = {
