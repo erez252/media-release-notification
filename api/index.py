@@ -1707,7 +1707,7 @@ def catalog(content_type, catalog_id_path):
                     if movie.get("media_type") == "movie":
                         poster_path = movie.get("poster_path")
                         movies.append({
-                            "id": f"tmdb:{movie['id']}", 
+                            "id": movie.get("imdb_id") if movie.get("imdb_id") else f"tmdb:{movie.get('id')}", 
                             "type": "movie",
                             "name": f"{movie['title']}",
                             "poster": f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else "https://placehold.co"
