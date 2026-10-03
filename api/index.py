@@ -1447,6 +1447,8 @@ def get_tv_info():
             "genres": data.get("genres", []),
             "tagline": data.get("tagline", ""),
             "overview": data.get("overview", ""),
+            "number_of_episodes": data.get("number_of_episodes", 0),
+            "number_of_seasons": data.get("number_of_seasons", 0),
             "production_companies": data.get("production_companies", []),
             "origin_country": data.get("origin_country", []),
             "original_language": data.get("original_language", ""),
