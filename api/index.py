@@ -1597,7 +1597,7 @@ def stremio_sync():
 
         data = response.json()
         result = data.get("result") or []
-        items_to_consider = [item for item in result if ((not item.get('removed')) or item.get('state').get('timesWatched')) and (item.get('type') == "movie" or item.get('type') == "series")]
+        items_to_consider = [item for item in result if ((not item.get('removed')) or (item.get('state') or {}).get('timesWatched')) and (item.get('type') == "movie" or item.get('type') == "series")]
         for item in items_to_consider:
             id = ""
             ignor_list_id = ""
@@ -1614,7 +1614,7 @@ def stremio_sync():
                 response = requests.get(f"https://api.themoviedb.org/3/find/{item.get('_id')}?external_source=imdb_id&api_key={TMDB_API_KEY}")
                 time.sleep(0.1)
                 item_tmdb = response.json() or {}
-                item_tmdb = item_tmdb.get("movie_results") or item_tmdb.get("movie_results") or item_tmdb.get("tv_results") or item_tmdb.get("tv_episode_results") or item_tmdb.get("tv_season_results") or {}
+                item_tmdb = item_tmdb.get("movie_results") or item_tmdb.get("tv_results") or item_tmdb.get("tv_episode_results") or item_tmdb.get("tv_season_results") or {}
                 if item_tmdb:
                     item_tmdb = item_tmdb[0]
                     id = item_tmdb.get("id") or ""
@@ -1625,8 +1625,8 @@ def stremio_sync():
                 if ignor_list_id not in ignor_list:
                     ignor_list.append(ignor_list_id)
                     alrady_in_the_list = False
-                    for item in db_data:
-                        if item.get("media_type") == media_type and item.get("id") == id:
+                    for media in db_data:
+                        if media.get("media_type") == media_type and str(media.get("id")) == str(id):
                             alrady_in_the_list = True
                             break
                     if not alrady_in_the_list:
