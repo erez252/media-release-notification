@@ -1393,6 +1393,25 @@ def get_movie_info():
             if providers_data: 
                 movie["watch_providers"] = providers_data
 
+                us_release_dates = ""
+                
+        age_rating = ""
+        release_dates = (data.get("release_dates") or {}).get("results")
+        if release_dates:
+            us_release_dates = [country for country in release_dates if country.get("iso_3166_1") == "US"]
+            if us_release_dates:
+                us_release_dates = us_release_dates[0].get('release_dates') or {}
+                if us_release_dates:
+                    for release_date in us_release_dates:
+                        certification = ""
+                        if (release_date.get('certification') or ""):
+                            certification = release_date.get('certification') or {}
+                            if certification:
+                                age_rating = certification
+                                break
+        if age_rating:
+            movie["age_rating"] = age_rating
+
 
         return jsonify(movie), 200
     except Exception as e:
@@ -1410,7 +1429,7 @@ def get_tv_info():
         if not tv_id:
             return jsonify({"error": "misiing id"})
 
-        response = requests.get(f"https://api.themoviedb.org/3/tv/{tv_id}?api_key={TMDB_API_KEY}&append_to_response=keywords,release_dates,videos,credits")
+        response = requests.get(f"https://api.themoviedb.org/3/tv/{tv_id}?api_key={TMDB_API_KEY}&append_to_response=keywords,release_dates,videos,credits,content_ratings")
         data = response.json()
         show = {
             "title": data.get("name", ""),
@@ -1531,6 +1550,20 @@ def get_tv_info():
             response = requests.get(f"https://api.tvmaze.com/shows/{show.get("tvmaze_id")}/episodes?specials=1")
             if response.json():
                 show["episodes"] = response.json()
+
+
+        age_rating = ""
+        raw_age_ratings = (data.get("content_ratings") or {}).get("results")
+        if raw_age_ratings:
+            for rating in raw_age_ratings:
+                if rating.get("iso_3166_1") == "US":
+                    raw_age_rating = rating.get("rating") or ""
+                    if raw_age_rating:
+                        age_rating = raw_age_rating
+                        break
+
+        if age_rating:
+            show["age_rating"] = age_rating
 
         return jsonify(show), 200
     except Exception as e:
