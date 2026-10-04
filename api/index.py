@@ -10,6 +10,7 @@ app = Flask(__name__)
 CORS(app)  # Handles CORS preflight headers automatically
 import urllib.parse
 
+
 UPSTASH_REDIS_REST_URL = os.environ.get('UPSTASH_REDIS_REST_URL')
 UPSTASH_REDIS_REST_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
 TMDB_API_KEY = os.environ.get('TMDB_API_KEY')
@@ -19,6 +20,7 @@ QSTASH_URL = os.environ.get('QSTASH_URL')
 IGDB_CLIENT_ID = os.environ.get('IGDB_CLIENT_ID')
 IGDB_ACCESS_TOKEN = os.environ.get('IGDB_ACCESS_TOKEN')
 STREMIO_AUTHKEY = os.environ.get('STREMIO_AUTHKEY')
+NTFY_SUB_CHANNEL = os.environ.get('NTFY_SUB_CHANNEL')
 
 headers = {"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"}
 qstash_header= {"Authorization": f"Bearer {QSTASH_TOKEN}"}
@@ -343,7 +345,7 @@ def get_data_for_add_item(media_id, media_type):
             "title": movie_data.get("title") or movie_data.get("name"),
             "poster_path": movie_data.get("poster_path"),
             "overview": movie_data.get("overview"),
-            "runtime": movie_data.get("runtime"),
+            "runtime": movie_data.get("runtime") or movie_data.get("episode_run_time") or "",
             "status": movie_data.get("status"),
             "genres": movie_data.get("genres"),
             "media_type": "movie" if movie_data.get("title") else "tv",
@@ -356,7 +358,6 @@ def get_data_for_add_item(media_id, media_type):
         }
         if media_type == "movie":
             movie_data["release_date"] = raw_movie_data.get("release_date", None)
-            movie_data["runtime"] = raw_movie_data.get("runtime", None)
         else:
             movie_data["first_air_date"] = raw_movie_data.get("first_air_date", None)
             movie_data["last_air_date"] = raw_movie_data.get("last_air_date", None)
@@ -752,24 +753,32 @@ def check_tv():
 
         db_data = get_db_data_v2()
         new_episodes_all = []
-        request_tvmaze = 10
+        request_tvmaze = 20
+        sleep_for = 15
+        sleep_on_item = 10 
         for show in db_data:
-            if show.get("media_type") == "tv" and show.get("tvmaze_id") and (not show.get("last_checked") or datetime.fromisoformat(show.get("last_checked")).date() < datetime.now(timezone.utc).date()):
+            try: 
+                if show.get("media_type") == "tv" and show.get("tvmaze_id") and (not show.get("last_checked") or datetime.fromisoformat(show.get("last_checked")).date() < datetime.now(timezone.utc).date()):
 
-                if not request_tvmaze:
-                    break
-                
-                response = requests.get(f"https://api.tvmaze.com/shows/{show.get('tvmaze_id')}/episodes")
-                show["last_checked"] = datetime.now(timezone.utc).isoformat()
-                request_tvmaze -= 1
-                tvmaze_data = response.json() or {}
-                new_episodes = []
-                for ep in tvmaze_data:
-                    if  datetime.fromisoformat(ep.get("airstamp")).astimezone(timezone.utc).date() == (datetime.now(timezone.utc).date() + timedelta(days=1)):
-                        new_episodes.append({'id': show.get('id'), 'show_name': show.get('title'), 'season': ep.get('season'), 'episode': ep.get('number'), 'airstamp': ep.get("airstamp"), 'airtime': ep.get('airtime'), 'type': ep.get("type", ""), 'name': ep.get("name", ""), 'poster_path': show.get("poster_path", "")})
-                if new_episodes:        
-                    new_episodes_all.append(new_episodes)
-        update_db(db_data)
+                    if not request_tvmaze:
+                        break
+                    if request_tvmaze == sleep_on_item:
+                        time.sleep(sleep_for)
+
+                    response = requests.get(f"https://api.tvmaze.com/shows/{show.get('tvmaze_id')}/episodes")
+                    show["last_checked"] = datetime.now(timezone.utc).isoformat()
+                    request_tvmaze -= 1
+                    tvmaze_data = response.json() or {}
+                    new_episodes = []
+                    for ep in tvmaze_data:
+                        if datetime.fromisoformat(ep.get("airstamp")).astimezone(timezone.utc).date() == (datetime.now(timezone.utc).date() + timedelta(days=1)):
+                            new_episodes.append({'id': show.get('id'), 'show_name': show.get('title'), 'season': ep.get('season'), 'episode': ep.get('number'), 'airstamp': ep.get("airstamp"), 'airtime': ep.get('airtime'), 'type': ep.get("type", ""), 'name': ep.get("name", ""), 'poster_path': show.get("poster_path", "")})
+                    if new_episodes:        
+                        new_episodes_all.append(new_episodes)
+                        
+                    update_one_item_in_db(show)
+            except Exception:
+                continue
 
         new_episodes_summery_all = []
         for show in new_episodes_all:
@@ -827,44 +836,19 @@ def updater():
             response = requests.get(f"https://api.themoviedb.org/3/{item['media_type']}/{item['id']}?api_key={TMDB_API_KEY}")
             data = response.json()
             limit -= 1
-            if item.get('media_type', "") == "movie":
-                if item.get('title', "") !=  data.get('title', ""):
-                    item['title'] = data.get('title', "")
-    
-            else:
-                if item.get('title', "") !=  data.get('name', ""):
-                    item['title'] = data.get('name', "")
-      
-                
-            if item.get('poster_path', "") !=  data.get('poster_path', ""):
-                item['poster_path'] = data.get('poster_path', "")
-
-                
-            if item.get('overview', "") !=  data.get('overview', ""):
-                item['overview'] = data.get('overview', "")
-
-
-            if item.get('runtime', "") !=  data.get('runtime', ""):
-                item['runtime'] = data.get('runtime', "")
-
-                
-            if item.get('status', "") !=  data.get('status', ""):
-                item['status'] = data.get('status', "")
-
-                
-            if item.get('genres', "") !=  data.get('genres', ""):
-                item['genres'] = data.get('genres', "")
-
+            item["title"] = data.get('title') or data.get('name') or ""
+            item['poster_path'] = data.get('poster_path') or ""
+            item['overview'] = data.get('overview') or ""
+            item['runtime'] = data.get('runtime') or data.get('episode_run_time') or ""
+            item['status'] = data.get('status') or ""
+            item['genres'] = data.get('genres', "") or ""
                 
             if item.get('release_date', "") !=  data.get('release_date', ""):
                 item['release_date'] = data.get('release_date', "")
-
-                
                 
             if item.get('first_air_date', "") !=  data.get('first_air_date', ""):
                 item['first_air_date'] = data.get('first_air_date', "")
 
-                
             if item.get('last_air_date', "") !=  data.get('last_air_date', ""):
                 item['last_air_date'] = data.get('last_air_date', "")
 
@@ -872,9 +856,7 @@ def updater():
                 item['imdb_id'] = data.get('imdb_id', "")
                 
             item['last_updated'] = datetime.now(timezone.utc).isoformat()
-                
             
-    
     update_db(db_data)
     return jsonify({"success": "true", "message": "Updated the media"}), 200
 
@@ -1822,7 +1804,7 @@ def seb_check():
 
                     field = f"{item.get("movie_type")}:{id}:{season}:{episode}"
                     if have_sub:
-                        requests.post("https://ntfy.sh/x1LZPrQgVSfh2Tp6ackyMlB2n8uG4jvBMlsLmNwj2IYq", data=f"כתוביות ל-{item.get("name")} עונה: {season} פרק: {episode} יצאו")
+                        requests.post(F"https://ntfy.sh/{NTFY_SUB_CHANNEL}", data=f"כתוביות ל-{item.get("name")} עונה: {season} פרק: {episode} יצאו")
                         requests.post(
                             UPSTASH_REDIS_REST_URL,
                                 headers=headers,
