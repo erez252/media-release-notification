@@ -1766,5 +1766,78 @@ def catalog(content_type, catalog_id_path):
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
 
-        
-            
+@app.route('/api/checker/subs', methods=['POST'])
+def seb_check():
+    try:
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        open_sub_headers = {
+            "Content-Type": "application/json",
+            "Api-Key": os.environ.get('OPENSUBTITLES_AUTHKEY'),
+            "User-Agent": "erezTest v1.0.0"
+        }
+        response = requests.post(
+            UPSTASH_REDIS_REST_URL,
+            headers=headers,
+            json=["HVALS", "heb-subs-list"]
+        )
+
+
+        raw_list = response.json()["result"]
+
+        sub_list = [json.loads(item) for item in raw_list if item.startswith('{')]
+
+
+        if sub_list:
+            for item in sub_list:
+                if not item.get("last_checked") or datetime.fromisoformat(item.get("last_checked")).date() != datetime.now(timezone.utc).date():
+                    id = item.get("id") or ""
+                    season = item.get("season") or 0
+                    episode = item.get("episode") or 0
+                    have_sub = False
+                    item["last_checked"] = datetime.now(timezone.utc).isoformat()
+                    if id and season and episode:
+                        response = requests.get(f"https://api.opensubtitles.com/api/v1/subtitles?parent_imdb_id={id}&languages=he", headers=open_sub_headers)
+                        print(response)
+                        if response.status_code == 200:
+                            open_data = response.json()
+                            if open_data:
+                                open_data = open_data.get("data")
+                                if open_data:
+                                    for sub in open_data:
+                                        if ((sub.get('attributes') or {}).get('feature_details') or {}).get("season_number") == season and ((sub.get('attributes') or {}).get('feature_details') or {}).get("episode_number") == episode:
+                                            have_sub = True
+                                            break
+                    if not have_sub:
+                        url = f"https://4b139a4b7f94-ktuvit-stremio.baby-beamup.club/subtitles/series/{id}:{season}:{episode}/videoHash=&videoSize=.json"
+
+                        response = requests.get(url)
+                        if response.status_code == 200:
+                            data = response.json()
+                            if data:
+                                if (data.get('subtitles')or {}):
+                                    have_sub = True
+
+                    field = f"{item.get("movie_type")}:{id}:{season}:{episode}"
+                    if have_sub:
+                        requests.post("https://ntfy.sh/x1LZPrQgVSfh2Tp6ackyMlB2n8uG4jvBMlsLmNwj2IYq", data=f"כתוביות ל-{item.get("name")} עונה: {season} פרק: {episode} יצאו")
+                        requests.post(
+                            UPSTASH_REDIS_REST_URL,
+                                headers=headers,
+                                json=["HDEL", "heb-subs-list", field]
+                        )
+
+                        break
+                    requests.post(
+                        UPSTASH_REDIS_REST_URL,
+                        headers=headers,
+                        json=["HSET", "heb-subs-list", field, json.dumps(item)]
+                    )
+                    break
+                
+        return jsonify({"success": True, "message": f"successfully cheaked for subs"}), 200
+    
+    except Exception as e:
+        return jsonify({"success": False, "message": f"{e}"}), 500
