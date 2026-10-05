@@ -748,7 +748,84 @@ def prepper_to_send_movie_notification():
     return jsonify({"success": "true", "message": "movie notification send successfully"}), 200
 
 @app.route('/api/checker/tv', methods=['POST'])
-def check_tv():
+def check_tv_v2():
+    
+    
+    
+    try:
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+            return jsonify({'error': 'Unauthorized'}), 401
+        db_data = get_db_data_v2()
+        id_list = [item.get("tvmaze_id") for item in db_data if (item.get("media_type") == "tv" and item.get("tvmaze_id", ""))]
+        date_iso = datetime.now(timezone.utc).date().isoformat()
+
+        response = requests.get(f"https://api.tvmaze.com/schedule/?date={date_iso}")
+        response_web = requests.get(f"https://api.tvmaze.com/schedule/web?date={date_iso}&country=")
+        data = response.json() or []
+        data_web = response_web.json() or []
+        new_ep = []
+        if data or data_web:
+            for ep in data + data_web:
+                if ((((ep.get("show") or {}).get("id") or "") or (((ep.get("_embedded") or {}).get("show") or {}).get("id") or "")) in id_list):
+                    new_ep.append(ep)
+            if new_ep:
+                new_ep_formated = []
+                for ep in new_ep:
+                    tvmaze_id = (((ep.get("show") or {}).get("id") or "") or (((ep.get("_embedded") or {}).get("show") or {}).get("id") or ""))
+                    show_id = [item["id"] for item in db_data if item.get("tvmaze_id") == tvmaze_id]
+                    poster_path = [item["poster_path"] for item in db_data if item.get("tvmaze_id") == tvmaze_id]
+                    
+                    
+                    new_ep_formated.append({
+                        "id": show_id[0],
+                        "show_name": (((ep.get("show") or {}).get("name") or "") or (((ep.get("_embedded") or {}).get("show") or {}).get("name") or "")),
+                        "season": ep.get("season"),
+                        "episode": ep.get("number"),
+                        "airstamp": ep.get("airstamp"),
+                        "type": ep.get("type"),
+                        "name": ep.get("name"),
+                        "poster_path": poster_path[0],
+                    })
+
+
+                new_ep_by_show = {}
+
+                for ep in new_ep_formated:
+                    show_id = str(ep.get("id"))
+                    if show_id not in new_ep_by_show:
+                        new_ep_by_show[show_id] = []
+                    new_ep_by_show[show_id].append(ep)
+
+                list_new_ep_by_show = list(new_ep_by_show.values())
+
+                target_url = "https://media-release-notification.vercel.app/api/notification/tv"
+
+
+                for show in list_new_ep_by_show:
+
+                    show_time_stemp = datetime.fromisoformat(show[0].get("airstamp") or "1970-01-01T12:00:00+00:00")
+                    now_time_stemp = datetime.now(timezone.utc)
+                    seconds_left = int(max(0, show_time_stemp.timestamp() - now_time_stemp.timestamp())) 
+
+                    qstash_task_header= {
+                        "Authorization": f"Bearer {QSTASH_TOKEN}",
+                        "Content-Type": "application/json",
+                        "Upstash-Delay": f"{seconds_left}s",
+                        "Upstash-Forward-Authorization": f"Bearer {os.environ.get('PASSWORD')}"
+                    }
+
+                    qstash_publish_endpoint = f"{QSTASH_URL}/publish/{target_url}"
+                    qstash_task_payload = show
+                    response = requests.post(qstash_publish_endpoint, headers=qstash_task_header, json=qstash_task_payload)
+        return jsonify({"success": "true", "message": "check_tv notification successfully"}), 200
+        
+    except Exception as e:
+        return jsonify({"error": "Bad Gateway", "message": f"Server error: {e}"}), 502
+    
+
+
+def check_tv_old():
     try:
         auth_header = request.headers.get("authorization", "")
         if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
