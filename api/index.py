@@ -657,6 +657,8 @@ def send_tv_notification():
             what_new = "Season"
             if first_ep.get("season") == 1:
                 what_new = "Show"
+        
+        item = get_item_data_from_db({'id': first_ep.get("id"), "media_type": "tv"})
 
         # collect the episodes to an array
         episodes_num = []
