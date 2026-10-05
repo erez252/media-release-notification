@@ -498,7 +498,59 @@ def search_tmdb():
 
 
 @app.route('/api/checker/movie', methods=['POST'])
-def check_movie():
+def check_movie_v2():
+    try:
+        db_data = get_db_data_v2()
+        id_list = [item.get("id") for item in db_data if (item.get("media_type") == "movie" and not item.get("digital"))]
+        if not id_list:
+            return jsonify({"success": True, "message": "check_movie checked successfully"}), 200
+            
+        date_iso = datetime.now(timezone.utc).date().isoformat()
+
+        params = {
+        "include_adult": "false",
+        "include_video": "false",
+        "page": 1,
+        "release_date.gte": date_iso,
+        "release_date.lte": date_iso,
+        "with_release_type": "4|5|6",
+        "sort_by": "popularity.desc",
+        "api_key": TMDB_API_KEY
+        }
+
+        all_movies = []
+        page = 1
+        total_pages = 1
+
+        while page <= total_pages:
+            params["page"] = page
+            response = requests.get("https://api.themoviedb.org/3/discover/movie", params=params, timeout=20)
+            if response.status_code != 200:
+                break
+            data = response.json()
+            all_movies.extend(data.get("results", []))
+
+            total_pages = data.get("total_pages", 1)
+            page += 1
+
+        if all_movies and id_list:
+            new_releses = [movie for movie in all_movies if movie.get("id") in id_list]
+            print(new_releses)
+
+            if new_releses:
+                for movie in new_releses:
+                    movie_in_db = [db_movie for db_movie in db_data if movie.get("id") == db_movie.get("id")][0]
+                    movie_in_db["digital"] = True
+                    movie["notifications"] = movie_in_db.get("notifications")
+                    movie["runtime"] = movie_in_db.get("runtime")
+                    movie["genres"] = movie_in_db.get("genres")
+                    send_movie_notification(movie, datetime.now(timezone.utc).isoformat())
+                    update_one_item_in_db(movie_in_db)
+        return jsonify({"success": True, "message": "check_movie checked successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": "Internal Server Error", "message": f"Server error: {e}"}), 500
+
+def check_movie_old():
     
     auth_header = request.headers.get("authorization", "")
     if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
