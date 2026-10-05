@@ -968,7 +968,7 @@ def updater():
         
         if ((not item.get('last_updated')) or datetime.fromisoformat(item.get('last_updated')).date() != datetime.now(timezone.utc).date()) and item.get('media_type', "") != "game":
             
-            response = requests.get(f"https://api.themoviedb.org/3/{item['media_type']}/{item['id']}?api_key={TMDB_API_KEY}")
+            response = requests.get(f"https://api.themoviedb.org/3/{item['media_type']}/{item['id']}?api_key={TMDB_API_KEY}&append_to_response=release_dates")
             data = response.json()
             limit -= 1
             item["title"] = data.get('title') or data.get('name') or ""
@@ -991,6 +991,25 @@ def updater():
                 item['imdb_id'] = data.get('imdb_id', "")
                 
             item['last_updated'] = datetime.now(timezone.utc).isoformat()
+            try:
+                if item.get('media_type', "") == "movie" and not item.get('digital'):
+                    release_dates = (data.get('release_dates') or {}).get('results')
+                    if release_dates:
+                        for date in release_dates:
+                            date_obj = (date.get('release_dates')[0] or {})
+                            if date_obj.get("type") > 3:
+                                release_date = datetime.fromisoformat(date_obj.get("release_date"))
+                                if release_date < datetime.now(timezone.utc):
+                                    is_digital = True
+                                    item["digital"] = True
+                                    send_movie_notification(item, datetime.now(timezone.utc).isoformat())
+                                    break
+            except Exception:
+                continue
+                
+                
+
+                
             
     update_db(db_data)
     return jsonify({"success": "true", "message": "Updated the media"}), 200
