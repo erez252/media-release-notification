@@ -559,144 +559,148 @@ def check_movie():
         
 @app.route('/api/notification/tv', methods=['POST'])
 def send_tv_notification():
-    auth_header = request.headers.get("authorization", "")
-    if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
-        return jsonify({'error': 'Unauthorized'}), 401
+    try:
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+            return jsonify({'error': 'Unauthorized'}), 401
 
-    body = request.get_json() or {}
+        body = request.get_json() or {}
 
-    
-    if len(body) == 1:
-        
-        episode = body[0]
-        show_id = episode.get("id")
-        item = get_item_data_from_db({'id': show_id, "media_type": "tv"})
-        
-        what_new = "Episode"
-        if episode.get("episode") == 1:
-            what_new = "Season"
-            if episode.get("season") == 1:
-                what_new = "Show"
-            
-        if episode.get("name") and episode.get("name") != "TBA":
-            
-            discord_msg = {
-              "content": f"🎬 **New {what_new} Released!**",
-              "embeds": [
-                {
-                  "title": episode.get("show_name"),
-                  "description": "A new episode is now streaming.",
-                  "color": 15844367,
-                  "fields": [
+
+        if len(body) == 1:
+
+            episode = body[0]
+            show_id = episode.get("id")
+            item = get_item_data_from_db({'id': show_id, "media_type": "tv"})
+
+            what_new = "Episode"
+            if episode.get("episode") == 1:
+                what_new = "Season"
+                if episode.get("season") == 1:
+                    what_new = "Show"
+
+            if episode.get("name") and episode.get("name") != "TBA":
+
+                discord_msg = {
+                  "content": f"🎬 **New {what_new} Released!**",
+                  "embeds": [
                     {
-                      "name": "Season",
-                      "value": f"`Season {episode.get("season")}`",
-                      "inline": True
-                    },
-                    {
-                      "name": "Episode",
-                      "value": f"`Episode {episode.get("episode")}`",
-                      "inline": True
-                    },
-                    {
-                      "name": "Episode Title",
-                      "value": f"**{episode.get("name")}**",
-                      "inline": False
+                      "title": episode.get("show_name"),
+                      "description": "A new episode is now streaming.",
+                      "color": 15844367,
+                      "fields": [
+                        {
+                          "name": "Season",
+                          "value": f"`Season {episode.get("season")}`",
+                          "inline": True
+                        },
+                        {
+                          "name": "Episode",
+                          "value": f"`Episode {episode.get("episode")}`",
+                          "inline": True
+                        },
+                        {
+                          "name": "Episode Title",
+                          "value": f"**{episode.get("name")}**",
+                          "inline": False
+                        }
+                      ],
+                      "thumbnail": {
+                        "url": f"https://image.tmdb.org/t/p/w780{episode.get("poster_path")}"
+                      },
+                      "footer": {
+                        "text": "Episode Release Notification"
+                      },
+                      "timestamp": f"{episode.get("airstamp")}"
                     }
-                  ],
-                  "thumbnail": {
-                    "url": f"https://image.tmdb.org/t/p/w780{episode.get("poster_path")}"
-                  },
-                  "footer": {
-                    "text": "Episode Release Notification"
-                  },
-                  "timestamp": f"{episode.get("airstamp")}"
+                  ]
                 }
-              ]
-            }
-        
-        else:
-           discord_msg = {
+
+            else:
+               discord_msg = {
+                  "content": f"🍿 **New {what_new} Available!**",
+                  "embeds": [
+                    {
+                      "title": episode.get("show_name"),
+                      "description": "A new episode is now available to watch.",
+                      "color": 15844367,
+                      "fields": [
+                        {
+                          "name": "Season",
+                          "value": f"`Season {episode.get("season")}`",
+                          "inline": True
+                        },
+                        {
+                          "name": "Episode",
+                          "value": f"`Episode {episode.get("episode")}`",
+                          "inline": True
+                        }
+                      ],
+                      "thumbnail": {
+                        "url": f"https://image.tmdb.org/t/p/w780{episode.get("poster_path")}"
+                      },
+                      "footer": {
+                        "text": "Episode Release Notification"
+                      },
+                      "timestamp": f"{episode.get("airstamp")}"
+                    }
+                  ]
+                }
+            if item.get("notifications"):
+                requests.post(DISCORD_URL, json=discord_msg)
+            return jsonify({"success": "true", "message": "tv notification send successfully"}), 200
+
+        # check if its a new Episodes, Season or Show
+        first_ep = body[0]
+        what_new = "Episodes"
+        if first_ep.get("episode") == 1:
+            what_new = "Season"
+            if first_ep.get("season") == 1:
+                what_new = "Show"
+
+        # collect the episodes to an array
+        episodes_num = []
+        for episode in body:
+            episodes_num.append(episode.get("episode"))
+
+        # discoed json msg
+        discord_msg = {
               "content": f"🍿 **New {what_new} Available!**",
               "embeds": [
                 {
-                  "title": episode.get("show_name"),
-                  "description": "A new episode is now available to watch.",
+                  "title": f"{first_ep.get("show_name")}",
+                  "description": "New episodes are now available to watch.",
                   "color": 15844367,
                   "fields": [
                     {
                       "name": "Season",
-                      "value": f"`Season {episode.get("season")}`",
+                      "value": f"`Season {first_ep.get("season")}`",
                       "inline": True
                     },
                     {
-                      "name": "Episode",
-                      "value": f"`Episode {episode.get("episode")}`",
+                      "name": "Episodes",
+                      "value": f"`Episodes {episodes_num[0]}-{episodes_num[-1]}`",
                       "inline": True
                     }
                   ],
                   "thumbnail": {
-                    "url": f"https://image.tmdb.org/t/p/w780{episode.get("poster_path")}"
+                    "url": f"https://image.tmdb.org/t/p/w780{first_ep.get("poster_path")}"
                   },
                   "footer": {
                     "text": "Episode Release Notification"
                   },
-                  "timestamp": f"{episode.get("airstamp")}"
+                  "timestamp": f"{first_ep.get("airstamp")}"
                 }
               ]
             }
+
+
         if item.get("notifications"):
             requests.post(DISCORD_URL, json=discord_msg)
         return jsonify({"success": "true", "message": "tv notification send successfully"}), 200
-    
-    # check if its a new Episodes, Season or Show
-    first_ep = body[0]
-    what_new = "Episodes"
-    if first_ep.get("episode") == 1:
-        what_new = "Season"
-        if first_ep.get("season") == 1:
-            what_new = "Show"
-            
-    # collect the episodes to an array
-    episodes_num = []
-    for episode in body:
-        episodes_num.append(episode.get("episode"))
+    except Exception as e:
+        return jsonify({"success": False, "message": e}), 200
         
-    # discoed json msg
-    discord_msg = {
-          "content": f"🍿 **New {what_new} Available!**",
-          "embeds": [
-            {
-              "title": f"{first_ep.get("show_name")}",
-              "description": "New episodes are now available to watch.",
-              "color": 15844367,
-              "fields": [
-                {
-                  "name": "Season",
-                  "value": f"`Season {first_ep.get("season")}`",
-                  "inline": True
-                },
-                {
-                  "name": "Episodes",
-                  "value": f"`Episodes {episodes_num[0]}-{episodes_num[-1]}`",
-                  "inline": True
-                }
-              ],
-              "thumbnail": {
-                "url": f"https://image.tmdb.org/t/p/w780{first_ep.get("poster_path")}"
-              },
-              "footer": {
-                "text": "Episode Release Notification"
-              },
-              "timestamp": f"{first_ep.get("airstamp")}"
-            }
-          ]
-        }
-    
-
-    if item.get("notifications"):
-        requests.post(DISCORD_URL, json=discord_msg)
-    return jsonify({"success": "true", "message": "tv notification send successfully"}), 200
 
 @app.route('/api/notification/movie', methods=['POST'])
 def prepper_to_send_movie_notification():
