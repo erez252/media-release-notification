@@ -297,8 +297,108 @@ def check_if_item_in_the_list(media_id, media_type):
         if item.get("media_type") == media_type and item.get("id") == media_id:
             return True
     return False
-    
 
+ 
+def send_game_notification(body):
+    try:
+        if body.get("game_type_id") == 0:
+            print(body)
+            discord_msg = {
+                "content": "🎮 **New Game Released!**",
+                "embeds": [
+                  {
+                    "title": body.get("title"),
+                    "description": "Now available to play.",
+                    "color": 15418782,
+                    "fields": [
+                      {
+                        "name": "Release Date",
+                        "value": f"`{body.get("release_date")}`",
+                        "inline": True
+                      },
+                      {
+                        "name": "Developer",
+                        "value": body.get("developer") or "Unknown(?)",
+                        "inline": True
+                      },
+                      {
+                        "name": "Platforms",
+                        "value": ", ".join(body.get("platforms") or [])
+                      },
+                      {
+                        "name": "Genres",
+                        "value": ", ".join(body.get("genres") or [])
+                      }
+                    ],
+                    "footer": {
+                      "text": "Game Release Notification"
+                    },
+                    "timestamp": body.get("release_timestamp"),
+                    "image": {
+                      "url": f"https://images.igdb.com/igdb/image/upload/t_1080p/{body.get("poster")}.jpg"
+                    }
+                  }
+                ],
+                "attachments": []
+            }
+        else:
+            print(body)
+            discord_msg = {
+                "content": f"🧩 **New {body.get('game_type') or "DLC / Expansion"} Released!**",
+                "embeds": [
+                  {
+                    "title": body.get("title"),
+                    "description": "New downloadable content is now available.",
+                    "color": 5814783,
+                    "fields": [
+                      {
+                        "name": "Type",
+                        "value": f"`{body.get('game_type') or "Unknown(?)"}`",
+                        "inline": True
+                      },
+                      {
+                        "name": "Release Date",
+                        "value": f"`{body.get("release_date")}`",
+                        "inline": True
+                      },
+                      {
+                        "name": "Expansion Title",
+                        "value": f"**{body.get("name")}**"
+                      }
+                    ],
+                    "footer": {
+                      "text": "Game DLC Notification"
+                    },
+                    "timestamp": body.get("release_timestamp"),
+                    "thumbnail": {
+                      "url": f"https://images.igdb.com/igdb/image/upload/t_1080p/{body.get("poster")}.jpg"
+                    }
+                  }
+                ],
+                "attachments": []
+            }
+
+        requests.post(DISCORD_URL, json=discord_msg)
+        return False
+    except Exception as e:
+      return e
+
+def send_game_to_qstash(delay, body):
+    if not delay:
+        send_game_notification(body)
+    else:
+        target_url = "https://media-release-notification.vercel.app/api/notification/game"
+        qstash_task_header= {
+            "Authorization": f"Bearer {QSTASH_TOKEN}",
+            "Content-Type": "application/json",
+            "Upstash-Delay": f"{delay}s",
+            "Upstash-Forward-Authorization": f"Bearer {os.environ.get('PASSWORD')}"
+        }
+        qstash_publish_endpoint = f"{QSTASH_URL}/publish/{target_url}"
+        qstash_task_payload = body
+        requests.post(qstash_publish_endpoint, headers=qstash_task_header, json=qstash_task_payload)
+        
+        
 @app.route('/api/get-data', methods=['POST'])
 def get_watchlist():
     body = request.get_json() or {}
@@ -1007,7 +1107,7 @@ def updater():
             except Exception:
                 continue
                 
-                
+
 
                 
             
@@ -1016,7 +1116,101 @@ def updater():
 
 
 @app.route('/api/checker/game', methods=['POST'])
-def game_checker():
+def get_new_games():
+    try: 
+        
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        today = datetime.now(timezone.utc).date().isoformat()
+        db_data = get_db_data_v2()
+        id_list = [game.get("id") for game in db_data if game.get("media_type", "") == "game" and game.get("last_notified", "") != today]
+
+        now = datetime.now(timezone.utc)
+        start_of_today = int(now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
+        end_of_today = int(now.replace(hour=23, minute=59, second=59, microsecond=999999).timestamp())
+
+
+
+        fields = (  
+                "platform.abbreviation, date, status,"
+                "game.name, game.game_type.type, game.involved_companies.developer, game.involved_companies.company.name, game.genres.name, game.cover.image_id,"
+                "game.parent_game,game.parent_game.name, game.parent_game.cover.image_id;"
+                f"where date >= {start_of_today} & date <= {end_of_today}; "
+                "sort date asc; "
+                "limit 500;"
+            )
+        response = requests.post(f"https://api.igdb.com/v4/release_dates" ,headers=igdb_headers, data=f'fields {fields}')
+
+        data = response.json()
+        if data:
+            all_new_games = []
+            for resolt in data:
+                if resolt.get("id") in id_list or (resolt.get("game") or {}).get('id') in id_list or ((resolt.get("game") or {}).get('parent_game') or {}).get("id") in id_list:
+                    all_new_games.append(resolt)
+
+            if all_new_games:
+                new_games = {}
+                for new_game in all_new_games:
+                    game_id = (new_game.get("game") or {}).get("id")
+                    if not new_games.get(game_id):
+                        new_games[game_id] = []
+                    new_games[game_id].append(new_game)
+                new_games = list(new_games.values())
+                for new_game in new_games:
+                    candidate_ids = [
+                        ((new_game[0].get("game") or {}).get("parent_game") or {}).get("id"),
+                        (new_game[0].get("game") or {}).get("id"),
+                        new_game[0].get("id")
+                    ]
+                    matched_db_id = next((candidate_id for candidate_id in candidate_ids if candidate_id in id_list), None)
+                    name = new_game[0].get('game', {}).get("name", "")
+                    raw_platforms = [
+                        item.get("platform", {}).get("abbreviation") or item.get("platform", {}).get("name", "")
+                        for item in new_game
+                    ]
+                    platforms = sorted(set(raw_platforms), key=lambda platform: (0 if platform == "PC" else 1, platform))
+                    title = (new_game[0].get("game", {}).get("parent_game") or {}).get("name", "") or new_game[0].get("game", {}).get("name", "")
+                    game_type = new_game[0].get("game", {}).get("game_type", {}).get("type", "")
+                    game_type_id = new_game[0].get("game", {}).get("game_type", {}).get("id", "")
+                    release_date = datetime.fromtimestamp(new_game[0].get("date"), timezone.utc)
+                    involved = new_game[0].get("game", {}).get("involved_companies") or []
+                    developer = [item.get("company", {}).get("name", "") for item in involved if item.get("developer")]
+                    developer = developer[0] if developer else ""
+                    cover = (new_game[0].get("game", {}).get("cover") or {}).get("image_id", "")
+                    parent_cover = ((new_game[0].get("game", {}).get("parent_game") or {}).get("cover") or {}).get("image_id", "")
+                    poster = cover or parent_cover
+                    genres_list = new_game[0].get("game", {}).get("genres") or []
+                    genres = [item.get("name") for item in genres_list]
+                    body = {
+                        "id": matched_db_id,
+                        "media_type": "game",
+                        "title": title,
+                        "platforms": platforms,
+                        "game_type": game_type,
+                        "name": name,
+                        "game_type_id": game_type_id,
+                        "release_date": release_date.date().isoformat(),
+                        "release_timestamp": release_date.isoformat(),
+                        "developer": developer,
+                        "genres": genres,
+                        "poster": poster,
+                    }
+                    db_item = next(item for item in db_data if item.get("id") == matched_db_id)
+                    db_item["last_notified"] = today
+                    update_one_item_in_db(db_item)
+                    delay = max(int(release_date.timestamp() - datetime.now(timezone.utc).timestamp()), 0)
+                    send_game_to_qstash(delay, body)
+
+        return jsonify({"success": "true", "message": "check_game checked successfully"}), 200
+    except Exception as e:
+        return jsonify({"success": "false", "message": f"{e}"}), 500
+        
+
+
+
+def game_checker_old():
     
     auth_header = request.headers.get("authorization", "")
     if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
@@ -1223,7 +1417,20 @@ def game_checker():
     
     
 @app.route('/api/notification/game', methods=['POST'])
-def send_game_notification():
+def get_game_notification():
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        body = request.get_json() or {}
+        faild = send_game_notification(body)
+        if not faild:
+            return jsonify({"success": True, "message": "game notification send successfully"}), 200
+        
+        return jsonify({"success": False, "message": f"{faild}"}), 500
+
+
+def send_game_notification_old():
     try:
         auth_header = request.headers.get("authorization", "")
         if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
