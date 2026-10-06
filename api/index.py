@@ -828,14 +828,17 @@ def send_tv_notification():
             return jsonify({"success": "true", "message": "tv notification send successfully"}), 200
 
         # check if its a new Episodes, Season or Show
-        respons = requests.get(f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}")
-        show_data = {}
-        if respons.status_code == 200:
-            show_data = respons.json()
+
+
             
             
         first_ep = body[0]
         last_ep = body[-1]
+        show_id = first_ep.get("id")
+        respons = requests.get(f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}")
+        show_data = {}
+        if respons.status_code == 200:
+            show_data = respons.json()
         what_new = "Episodes"
         new_logic = False
         if show_data:
@@ -913,7 +916,7 @@ def send_tv_notification():
             requests.post(DISCORD_URL, json=discord_msg)
         return jsonify({"success": "true", "message": "tv notification send successfully"}), 200
     except Exception as e:
-        return jsonify({"success": False, "message": e}), 200
+        return jsonify({"success": False, "message": e}), 500
         
 
 @app.route('/api/notification/movie', methods=['POST'])
