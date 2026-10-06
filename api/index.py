@@ -301,8 +301,13 @@ def check_if_item_in_the_list(media_id, media_type):
  
 def send_game_notification(body):
     try:
+        db_data = get_db_data_v2()
+        db_item = next((item for item in db_data if item.get("id") == body.get("id")), {})
+
         if body.get("game_type_id") == 0:
-            print(body)
+            if db_item:
+                db_item["released"] == True
+                update_one_item_in_db(db_item)
             discord_msg = {
                 "content": "🎮 **New Game Released!**",
                 "embeds": [
@@ -378,7 +383,9 @@ def send_game_notification(body):
                 "attachments": []
             }
 
-        requests.post(DISCORD_URL, json=discord_msg)
+
+        if db_item.get("notifications"):
+            requests.post(DISCORD_URL, json=discord_msg)
         return False
     except Exception as e:
       return e
