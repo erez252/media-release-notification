@@ -730,13 +730,31 @@ def send_tv_notification():
 
             episode = body[0]
             show_id = episode.get("id")
+            respons = requests.get(f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}")
+            show_data = {}
+            if respons.status_code == 200:
+                show_data = respons.json()
             item = get_item_data_from_db({'id': show_id, "media_type": "tv"})
 
             what_new = "Episode"
-            if episode.get("episode") == 1:
-                what_new = "Season"
-                if episode.get("season") == 1:
-                    what_new = "Show"
+            
+            if show_data:
+                season_number = episode.get("season")
+                seasons = show_data.get("seasons") or []
+                season_data = next((s for s in seasons if s.get("season_number") == season_number), None)
+                if season_data:
+                    max_episodes = season_data.get("episode_count")
+                    if max_episodes and max_episodes == episode.get("episode"):
+                        if max_episodes != 1:
+                            what_new = "Season Finale"
+                        else:
+                            what_new = "Special"
+            if what_new != "Special":
+                if episode.get("episode") == 1:
+                    what_new = "Season"
+                    if episode.get("season") == 1:
+                        what_new = "Show"
+                    
 
             if episode.get("name") and episode.get("name") != "TBA":
 
@@ -810,12 +828,47 @@ def send_tv_notification():
             return jsonify({"success": "true", "message": "tv notification send successfully"}), 200
 
         # check if its a new Episodes, Season or Show
+        respons = requests.get(f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}")
+        show_data = {}
+        if respons.status_code == 200:
+            show_data = respons.json()
+            
+            
         first_ep = body[0]
+        last_ep = body[-1]
         what_new = "Episodes"
-        if first_ep.get("episode") == 1:
-            what_new = "Season"
-            if first_ep.get("season") == 1:
-                what_new = "Show"
+        new_logic = False
+        if show_data:
+            season_number = first_ep.get("season")
+            seasons = show_data.get("seasons") or []
+            season_data = next((s for s in seasons if s.get("season_number") == season_number), None)
+            if season_data:
+                max_episodes = season_data.get("episode_count")
+                if max_episodes:
+                    start_ep = first_ep.get("episode")
+                    end_ep = last_ep.get("episode")
+                    season_num = first_ep.get("season")
+                    if end_ep == max_episodes:
+                        if start_ep == 1:
+                            if season_num == 1:
+                                what_new = "Full First Season"
+                            else:
+                                what_new = "Full Season"
+                        else:
+                            what_new = "Final Episodes"
+                    elif start_ep == 1:
+                        if season_num == 1:
+                            what_new = "Show"
+                        else:
+                            what_new = "Season"
+                    new_logic = True
+
+                
+        if not new_logic:       
+            if first_ep.get("episode") == 1:
+                what_new = "Season"
+                if first_ep.get("season") == 1:
+                    what_new = "Show"
         
         item = get_item_data_from_db({'id': first_ep.get("id"), "media_type": "tv"})
 
