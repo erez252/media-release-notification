@@ -2029,10 +2029,11 @@ def stremio_sync():
                 ignor_list_id = ""
                 item_id = ""
                 media_type = "movie" if new_item.get('type') == "movie" else "tv"
-                if item.get('_id').startswith("tmdb:"):
-                    ignor_list_id = (f"tmdb:{item_type}:{item.get('_id').split(":")[1]}")
-                    item_id = item.get('_id').split(":")[1]
+                if new_item.get('_id').startswith("tmdb:"):
+                    ignor_list_id = (f"tmdb:{item_type}:{new_item.get('_id').split(":")[1]}")
+                    item_id = new_item.get('_id').split(":")[1]
                 else:
+                    ignor_list_id = new_item.get("_id")
                     response = requests.get(f"https://api.themoviedb.org/3/find/{new_item.get('_id')}?external_source=imdb_id&api_key={TMDB_API_KEY}")
                     time.sleep(0.1)
                     item_tmdb = response.json() or {}
@@ -2040,14 +2041,15 @@ def stremio_sync():
                         item_tmdb = item_tmdb.get("movie_results")
                     elif media_type == "tv":
                         item_tmdb = item_tmdb.get("tv_results")
-
-
+                    
+    
                     if item_tmdb:
                         item_tmdb = item_tmdb[0]
                         item_id = item_tmdb.get("id") or ""
-                        ignor_list_id = item.get("_id")
-
+    
+    
                 if item_id and ignor_list_id and media_type:
+                    print(f"appending {ignor_list_id}")
                     ignor_list.append(ignor_list_id)
                     alrady_in_the_list = False
                     for media in db_data:
@@ -2055,8 +2057,8 @@ def stremio_sync():
                             alrady_in_the_list = True
                             break
                     if not alrady_in_the_list:
-                            get_data_for_add_item(item_id, media_type)
-                            time.sleep(1)
+                        get_data_for_add_item(item_id, media_type)
+                        time.sleep(1)
         requests.post(
             UPSTASH_REDIS_REST_URL,
             headers=headers,
