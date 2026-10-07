@@ -1982,6 +1982,93 @@ def get_tv_info():
 @app.route('/api/sync/stremio', methods=['POST'])
 def stremio_sync():
     try:
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        response = requests.post(
+            UPSTASH_REDIS_REST_URL,
+            headers=headers,
+            json=["HGET", "stremio", "ignor_list"]
+        )
+        ignor_list = json.loads(response.json()['result'])    
+        db_data = get_db_data_v2()
+
+        body = {
+            "authKey": STREMIO_AUTHKEY,
+            "collection": "libraryItem",
+            "all": True
+        }
+
+        response = requests.post("https://api.strem.io/api/datastoreGet", json=body, headers=stremio_headers)
+        data = response.json()
+        result = data.get("result") or []
+
+        items_to_consider = [
+            item for item in result
+                if item.get("_id", "").startswith(("tt", "tmdb"))
+                and item.get("type") in ("movie", "series")
+                and (
+                    not item.get("removed")
+                    or (item.get("type") == "series" and bool((item.get("state") or {}).get("watched")))
+                )
+        ]
+        new_items = items_to_consider.copy()
+        for item in items_to_consider:
+            item_type = "movie" if item.get('type') == "movie" else "tv"
+            ignor_list_id = ""
+            if item.get('_id').startswith("tmdb:"):
+                ignor_list_id = (f"tmdb:{item_type}:{item.get('_id').split(":")[1]}")
+            else:
+                ignor_list_id = item.get('_id')
+            if ignor_list_id in ignor_list:
+                new_items.remove(item)
+
+        if new_items:
+            for new_item in new_items:
+                ignor_list_id = ""
+                item_id = ""
+                media_type = "movie" if new_item.get('type') == "movie" else "tv"
+                if item.get('_id').startswith("tmdb:"):
+                    ignor_list_id = (f"tmdb:{item_type}:{item.get('_id').split(":")[1]}")
+                    item_id = item.get('_id').split(":")[1]
+                else:
+                    response = requests.get(f"https://api.themoviedb.org/3/find/{new_item.get('_id')}?external_source=imdb_id&api_key={TMDB_API_KEY}")
+                    time.sleep(0.1)
+                    item_tmdb = response.json() or {}
+                    if media_type == "movie":
+                        item_tmdb = item_tmdb.get("movie_results")
+                    elif media_type == "tv":
+                        item_tmdb = item_tmdb.get("tv_results")
+
+
+                    if item_tmdb:
+                        item_tmdb = item_tmdb[0]
+                        item_id = item_tmdb.get("id") or ""
+                        ignor_list_id = item.get("_id")
+
+                if item_id and ignor_list_id and media_type:
+                    ignor_list.append(ignor_list_id)
+                    alrady_in_the_list = False
+                    for media in db_data:
+                        if media.get("media_type") == media_type and str(media.get("id")) == str(item_id):
+                            alrady_in_the_list = True
+                            break
+                    if not alrady_in_the_list:
+                            get_data_for_add_item(item_id, media_type)
+                            time.sleep(1)
+        requests.post(
+            UPSTASH_REDIS_REST_URL,
+            headers=headers,
+            json=["HSET", "stremio", "ignor_list", json.dumps(ignor_list)]
+        )
+        return jsonify({"success": True, "message": f"successfully sync the data"}), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": f"{e}"}), 500
+
+
+def stremio_sync_old():
+    try:
         
         auth_header = request.headers.get("authorization", "")
         if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
@@ -2003,7 +2090,15 @@ def stremio_sync():
 
         data = response.json()
         result = data.get("result") or []
-        items_to_consider = [item for item in result if ((not item.get('removed')) or (item.get('state') or {}).get('timesWatched')) and (item.get('type') == "movie" or item.get('type') == "series")]
+        items_to_consider = [
+            item for item in result
+                if item.get("_id", "").startswith(("tt", "tmdb"))
+                and item.get("type") in ("movie", "series")
+                and (
+                    not item.get("removed")
+                    or (item.get("type") == "series" and bool((item.get("state") or {}).get("watched")))
+                )
+        ]   
         for item in items_to_consider:
             id = ""
             ignor_list_id = ""
