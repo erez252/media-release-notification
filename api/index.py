@@ -2168,7 +2168,128 @@ def stremio_sync_old():
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
     
+
+@app.route('/api/calendar/make', methods=['POST'])
+def make_calendar():
     
+    try:
+    
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        db_data = get_db_data_v2()
+        id_list = [item.get("tvmaze_id") for item in db_data if item.get("tvmaze_id")]
+        calendar = []
+        #tv calendar
+        response = requests.get("https://api.tvmaze.com/schedule/full")
+        data = response.json()
+        tv_calendar = []
+        for show in data:
+            if ((show.get("_embedded") or {}).get("show") or {}).get("id") in id_list:
+                tvmaze_id = ((show.get("_embedded") or {}).get("show") or {}).get("id")
+                db_item = next(item for item in db_data if item.get("tvmaze_id") == tvmaze_id)
+                ep_type = "Regular"
+                if show.get("number") == 1:
+                    ep_type = "Season Premiere"
+                    if show.get("season") == 1:
+                        ep_type = "Series Premiere"
+                tv_calendar.append({
+                    "id": db_item.get("id"),
+                    "tvmaze_id": tvmaze_id,
+                    "poster_path": db_item.get("poster_path"),
+                    "title": db_item.get("title"),
+                    "media_type": "tv",
+                    'season': show.get("season"),
+                    'number': show.get("number"),
+                    'airstamp': show.get("airstamp"),
+                    'runtime': show.get("runtime"),
+                    'name': show.get('name'),
+                    'url': show.get('url'),
+                    'type': ep_type
+                })
+        movie_calendar = []
+        for item in db_data:
+            if item.get("media_type") == "movie" and (item.get("theatrical_release") or item.get("digital_release")):
+                if item.get("theatrical_release"):
+                    movie_calendar.append({
+                        "id": item.get("id"),
+                        "poster_path": item.get("poster_path"),
+                        "title": item.get("title"),
+                        "media_type": "movie",
+                        'airstamp': item.get("theatrical_release"),
+                        'runtime': item.get("runtime"),
+                        'type': "Theatrical Release",
+                    })   
+                if item.get("digital_release"):
+                    movie_calendar.append({
+                        "id": item.get("id"),
+                        "poster_path": item.get("poster_path"),
+                        "title": item.get("title"),
+                        "media_type": "movie",
+                        'airstamp': item.get("digital_release"),
+                        'runtime': item.get("runtime"),
+                        'type': "Digital Release",
+                    })   
+
+
+        game_calendar = []
+        game_id_list = [item.get("id") for item in db_data if item.get("media_type") == "game"]
+        formatted_ids = ", ".join(map(str, game_id_list))
+        fields = (  
+            "date_format.format, platform.abbreviation, date, status,"
+            "game.name, game.game_type.type, game.involved_companies.developer, game.involved_companies.company.name, game.genres.name, game.cover.image_id,game.platforms.abbreviation,"
+            "game.parent_game,game.parent_game.name, game.parent_game.cover.image_id;"
+            f"where (game = ({formatted_ids}) | game.parent_game = ({formatted_ids})) & date >= {int(datetime.now(timezone.utc).timestamp())};"
+            "sort date asc; "
+            "limit 500;"
+        )
+        response = requests.post(f"https://api.igdb.com/v4/release_dates" ,headers=igdb_headers, data=f'fields {fields}')
+        data = response.json()
+        print(len(data))
+
+        unique_games = {}
+        for entry in data:
+            g_id = entry['game']['id']
+            if g_id not in unique_games:
+                unique_games[g_id] = entry
+
+        final_list = list(unique_games.values())
+
+        for game in final_list:
+            candidate_ids = [
+                ((game.get("game") or {}).get("parent_game") or {}).get("id"),
+                (game.get("game") or {}).get("id"),
+                game.get("id")
+            ]
+            matched_db_id = next((candidate_id for candidate_id in candidate_ids if candidate_id in game_id_list), None)
+            db_item = next(_ for _ in db_data if _.get("media_type") == "game" and _.get("id") == matched_db_id)
+            platforms = [platform.get("abbreviation") for platform in (game.get("game") or {}).get('platforms') or []]
+            game_calendar.append({
+                "id": matched_db_id,
+                "title": db_item.get("title"),
+                "poster_path": ((game.get("game") or {}).get('cover') or {}).get('image_id') or db_item.get("poster_path"),
+                "media_type": "game",
+                "type": ((game.get("game") or {}).get('game_type') or {}).get('type') or "",
+                "name": (game.get("game") or {}).get('name') or "",
+                'platforms': platforms,
+                'airstamp': datetime.fromtimestamp(game.get("date"), timezone.utc).isoformat(),
+                "date_format" : (game.get('date_format') or {}).get('format') or "",
+            })
+
+
+
+
+        calendar =  tv_calendar + movie_calendar + game_calendar
+
+        requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["SET", "calendar", json.dumps(calendar)])
+        
+        return jsonify({"success": True, "message": "calendar created successfully"}), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": f"{e}"}), 500
+        
+
+
 @app.route('/api/manifest.json', methods=['GET'])
 def manifest():
     return jsonify({
