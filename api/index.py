@@ -1167,6 +1167,27 @@ def updater():
                                     item["digital"] = True
                                     send_movie_notification(item, datetime.now(timezone.utc).isoformat())
                                     break
+                                
+                        all_release_dates = []
+                        for date in release_dates:
+                            date_obj = (date.get('release_dates')[0] or {})
+                            all_release_dates.append(date_obj)
+                        sorted(all_release_dates, key=lambda _ : _.get('release_date'))
+                        first_theatrical_release = ""
+                        first_digital_release = ""
+                        for release_date in all_release_dates:
+                            if release_date.get('type') <= 3:
+                                first_theatrical_release = release_date.get('release_date')
+                                break
+                        for release_date in all_release_dates:
+                            if release_date.get('type') > 3:
+                                first_digital_release = release_date.get('release_date')
+                                break
+                        if first_theatrical_release:
+                            item["theatrical_release"] = first_theatrical_release
+                        if first_digital_release:
+                            item["digital_release"] = first_digital_release
+                        
             except Exception:
                 continue
                 
@@ -1730,6 +1751,8 @@ def get_movie_info():
                     next_digital_date = datetime.fromisoformat(next_digital_date["release_date"]).date().isoformat()
                     # add to the movie obj
                     movie["expected_on_digital"] = next_digital_date
+                    
+            
         except Exception as e:
             ...
         movie["digital"] = digital
@@ -2041,13 +2064,13 @@ def stremio_sync():
                         item_tmdb = item_tmdb.get("movie_results")
                     elif media_type == "tv":
                         item_tmdb = item_tmdb.get("tv_results")
-                    
-    
+
+
                     if item_tmdb:
                         item_tmdb = item_tmdb[0]
                         item_id = item_tmdb.get("id") or ""
-    
-    
+
+
                 if item_id and ignor_list_id and media_type:
                     print(f"appending {ignor_list_id}")
                     ignor_list.append(ignor_list_id)
@@ -2058,12 +2081,12 @@ def stremio_sync():
                             break
                     if not alrady_in_the_list:
                         get_data_for_add_item(item_id, media_type)
-                        time.sleep(1)
-        requests.post(
-            UPSTASH_REDIS_REST_URL,
-            headers=headers,
-            json=["HSET", "stremio", "ignor_list", json.dumps(ignor_list)]
-        )
+                        time.sleep(0.3)
+            requests.post(
+                UPSTASH_REDIS_REST_URL,
+                headers=headers,
+                json=["HSET", "stremio", "ignor_list", json.dumps(ignor_list)]
+            )
         return jsonify({"success": True, "message": f"successfully sync the data"}), 200
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
