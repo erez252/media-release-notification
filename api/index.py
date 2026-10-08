@@ -2265,7 +2265,7 @@ def make_calendar():
             matched_db_id = next((candidate_id for candidate_id in candidate_ids if candidate_id in game_id_list), None)
             db_item = next(_ for _ in db_data if _.get("media_type") == "game" and _.get("id") == matched_db_id)
             platforms = [platform.get("abbreviation") for platform in (game.get("game") or {}).get('platforms') or []]
-            involved = game[0].get("game", {}).get("involved_companies") or []
+            involved = game.get("game", {}).get("involved_companies") or []
             developer = [item.get("company", {}).get("name", "") for item in involved if item.get("developer")]
             developer = developer[0] if developer else ""
             game_calendar.append({
