@@ -2288,7 +2288,7 @@ def make_calendar():
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
         
-@app.route('/api/calendar/make', methods=['GET'])
+@app.route('/api/calendar/get', methods=['GET'])
 def get_calendar():
     response = requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["GET", "calendar"])
     return jsonify(response.json()), 200
