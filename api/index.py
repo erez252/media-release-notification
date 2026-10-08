@@ -2265,6 +2265,9 @@ def make_calendar():
             matched_db_id = next((candidate_id for candidate_id in candidate_ids if candidate_id in game_id_list), None)
             db_item = next(_ for _ in db_data if _.get("media_type") == "game" and _.get("id") == matched_db_id)
             platforms = [platform.get("abbreviation") for platform in (game.get("game") or {}).get('platforms') or []]
+            involved = game[0].get("game", {}).get("involved_companies") or []
+            developer = [item.get("company", {}).get("name", "") for item in involved if item.get("developer")]
+            developer = developer[0] if developer else ""
             game_calendar.append({
                 "id": matched_db_id,
                 "title": db_item.get("title"),
@@ -2275,6 +2278,8 @@ def make_calendar():
                 'platforms': platforms,
                 'airstamp': datetime.fromtimestamp(game.get("date"), timezone.utc).isoformat(),
                 "date_format" : (game.get('date_format') or {}).get('format') or "",
+                "alt_id": (game.get("game") or {}).get('id') or "",
+                "developer": developer
             })
 
 
@@ -2291,10 +2296,8 @@ def make_calendar():
 @app.route('/api/calendar/get', methods=['POST'])
 def get_calendar():
     
-    body = request.get_json() or {}
-    
-    authorized = is_authorized(body)
-    if not authorized:
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
         return jsonify({'error': 'Unauthorized'}), 401
     
     response = requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["GET", "calendar"])
