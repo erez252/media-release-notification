@@ -2291,8 +2291,9 @@ def make_calendar():
 @app.route('/api/calendar/get', methods=['GET'])
 def get_calendar():
     response = requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["GET", "calendar"])
-    data = json.loads(response.json())
-    return jsonify(json.dumps(data)), 200
+    result_str = response.json().get('result')
+    data = json.loads(result_str) if result_str else []
+    return jsonify(data), 200
 
 @app.route('/api/manifest.json', methods=['GET'])
 def manifest():
