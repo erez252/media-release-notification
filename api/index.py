@@ -1188,8 +1188,9 @@ def updater():
                         if first_digital_release:
                             item["digital_release"] = first_digital_release
                         
-            except Exception:
-                continue
+            except Exception as e:
+                return jsonify({"success": False, "message": e}), 500
+
                 
 
 
