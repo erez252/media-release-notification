@@ -1155,18 +1155,19 @@ def updater():
                 
             item['last_updated'] = datetime.now(timezone.utc).isoformat()
             try:
-                if item.get('media_type', "") == "movie" and not item.get('digital'):
+                if item.get('media_type', "") == "movie":
                     release_dates = (data.get('release_dates') or {}).get('results')
                     if release_dates:
-                        for date in release_dates:
-                            date_obj = (date.get('release_dates')[0] or {})
-                            if date_obj.get("type") > 3:
-                                release_date = datetime.fromisoformat(date_obj.get("release_date"))
-                                if release_date < datetime.now(timezone.utc):
-                                    is_digital = True
-                                    item["digital"] = True
-                                    send_movie_notification(item, datetime.now(timezone.utc).isoformat())
-                                    break
+                        if not item.get('digital'):
+                            for date in release_dates:
+                                date_obj = (date.get('release_dates')[0] or {})
+                                if date_obj.get("type") > 3:
+                                    release_date = datetime.fromisoformat(date_obj.get("release_date"))
+                                    if release_date < datetime.now(timezone.utc):
+                                        is_digital = True
+                                        item["digital"] = True
+                                        send_movie_notification(item, datetime.now(timezone.utc).isoformat())
+                                        break
                                 
                         all_release_dates = []
                         for date in release_dates:
@@ -1188,9 +1189,8 @@ def updater():
                         if first_digital_release:
                             item["digital_release"] = first_digital_release
                         
-            except Exception as e:
-                return jsonify({"success": False, "message": e}), 500
-
+            except Exception:
+                continue
                 
 
 
