@@ -2288,8 +2288,15 @@ def make_calendar():
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
         
-@app.route('/api/calendar/get', methods=['GET'])
+@app.route('/api/calendar/get', methods=['POST'])
 def get_calendar():
+    
+    body = request.get_json() or {}
+    
+    authorized = is_authorized(body)
+    if not authorized:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
     response = requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["GET", "calendar"])
     result_str = response.json().get('result')
     data = json.loads(result_str) if result_str else []
