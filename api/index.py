@@ -991,7 +991,7 @@ def check_tv_v2():
                     show_id = [item["id"] for item in db_data if item.get("tvmaze_id") == tvmaze_id]
                     poster_path = [item["poster_path"] for item in db_data if item.get("tvmaze_id") == tvmaze_id]
                     
-                    show_time_stemp = datetime.fromisoformat(ep.get("airstamp") or "1970-01-01T12:00:00+00:00")
+                    show_time_stemp = datetime.fromisoformat(ep.get("airstamp") or f"{ep.get('airdate')}T12:00:00+00:00")
                     if not ep.get("airtime"):
                         show_time_stemp = show_time_stemp.replace(hour=7)
                     
@@ -2200,6 +2200,10 @@ def make_calendar():
                     ep_type = "Season Premiere"
                     if show.get("season") == 1:
                         ep_type = "Series Premiere"
+                        
+                airstamp = datetime.fromisoformat(show.get("airstamp") or f"{show.get('airdate')}T12:00:00+00:00")
+                if not show.get("airtime"):
+                    airstamp = airstamp.replace(hour=7)
                 tv_calendar.append({
                     "id": db_item.get("id"),
                     "tvmaze_id": tvmaze_id,
@@ -2208,7 +2212,7 @@ def make_calendar():
                     "media_type": "tv",
                     'season': show.get("season"),
                     'number': show.get("number"),
-                    'airstamp': show.get("airstamp"),
+                    'airstamp': airstamp.isoformat(),
                     'runtime': show.get("runtime"),
                     'name': show.get('name'),
                     'url': show.get('url'),
