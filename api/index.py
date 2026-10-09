@@ -442,34 +442,8 @@ def remove_item ():
 
 def get_data_for_add_item(media_id, media_type):
 
-        movie_response = requests.get(f"https://api.themoviedb.org/3/{media_type}/{media_id}?api_key={TMDB_API_KEY}&append_to_response=recommendations")
+        movie_response = requests.get(f"https://api.themoviedb.org/3/{media_type}/{media_id}?api_key={TMDB_API_KEY}")
         
-        movie_data = movie_response.json()
-        tmdb_recommendations = (movie_data.get("recommendations") or {}).get('results') or []
-        
-        pipeline_commands = []
-        for item in tmdb_recommendations:
-            movie_id = item["id"]
-            card_data = {
-                "id": movie_id,
-                "title": item.get("title") or item.get("name"),
-                "poster": item.get("poster_path"),
-                "rating": item.get("vote_average"),
-                "genre_ids": item.get("genre_ids", []),
-                'release_date': item.get("release_date", "") or item.get("first_air_date", ""),
-                'media_type': item.get("media_type", "")
-            }
-
-            # Append Redis commands as argument arrays
-            pipeline_commands.append(["ZINCRBY", f"recs:{media_type}", "1", str(movie_id)])
-            pipeline_commands.append(["SET", f"meta:{media_type}:{movie_id}", json.dumps(card_data)])
-        
-        if pipeline_commands:
-            requests.post(
-                f"{UPSTASH_REDIS_REST_URL}/pipeline",
-                json=pipeline_commands,
-                headers=headers
-            )
         
         digital = check_if_digital(media_id)
         movie_data = movie_response.json()
@@ -1164,31 +1138,8 @@ def updater():
         
         if ((not item.get('last_updated')) or datetime.fromisoformat(item.get('last_updated')).date() != datetime.now(timezone.utc).date()) and item.get('media_type', "") != "game":
             
-            response = requests.get(f"https://api.themoviedb.org/3/{item['media_type']}/{item['id']}?api_key={TMDB_API_KEY}&append_to_response=release_dates,recommendations")
+            response = requests.get(f"https://api.themoviedb.org/3/{item['media_type']}/{item['id']}?api_key={TMDB_API_KEY}&append_to_response=release_dates")
             data = response.json()
-            
-            tmdb_recommendations = (data.get("recommendations") or {}).get('results') or []
-            pipeline_commands = []
-            for recommendation_item in tmdb_recommendations:
-                movie_id = recommendation_item["id"]
-                card_data = {
-                    "id": movie_id,
-                    "title": recommendation_item.get("title") or recommendation_item.get("name"),
-                    "poster": recommendation_item.get("poster_path"),
-                    "rating": recommendation_item.get("vote_average"),
-                    "genre_ids": recommendation_item.get("genre_ids", []),
-                    'release_date': recommendation_item.get("release_date", "") or recommendation_item.get("first_air_date", ""),
-                    'media_type': recommendation_item.get("media_type", "")
-                }
-                pipeline_commands.append(["ZINCRBY", f"recs:{item["media_type"]}", "1", str(movie_id)])
-                pipeline_commands.append(["SET", f"meta:{item["id"]}:{movie_id}", json.dumps(card_data)])
-            
-            if pipeline_commands:
-                requests.post(
-                    f"{UPSTASH_REDIS_REST_URL}/pipeline",
-                    json=pipeline_commands,
-                    headers=headers
-                )
             
             limit -= 1
             item["title"] = data.get('title') or data.get('name') or ""
