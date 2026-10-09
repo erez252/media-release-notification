@@ -991,13 +991,16 @@ def check_tv_v2():
                     show_id = [item["id"] for item in db_data if item.get("tvmaze_id") == tvmaze_id]
                     poster_path = [item["poster_path"] for item in db_data if item.get("tvmaze_id") == tvmaze_id]
                     
+                    show_time_stemp = datetime.fromisoformat(ep.get("airstamp") or "1970-01-01T12:00:00+00:00")
+                    if not ep.get("airtime"):
+                        show_time_stemp = show_time_stemp.replace(hour=7)
                     
                     new_ep_formated.append({
                         "id": show_id[0],
                         "show_name": (((ep.get("show") or {}).get("name") or "") or (((ep.get("_embedded") or {}).get("show") or {}).get("name") or "")),
                         "season": ep.get("season"),
                         "episode": ep.get("number"),
-                        "airstamp": ep.get("airstamp"),
+                        "airstamp": show_time_stemp.isoformat(),
                         "type": ep.get("type"),
                         "name": ep.get("name"),
                         "poster_path": poster_path[0],
