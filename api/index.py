@@ -454,6 +454,8 @@ def get_data_for_add_item(media_id, media_type):
             "overview": movie_data.get("overview"),
             "runtime": movie_data.get("runtime") or movie_data.get("episode_run_time") or "",
             "status": movie_data.get("status"),
+            "popularity": movie_data.get("popularity"),
+            "vote_average": movie_data.get("vote_average"),
             "genres": movie_data.get("genres"),
             "media_type": "movie" if movie_data.get("title") else "tv",
             "last_notification": None,
@@ -1143,6 +1145,8 @@ def updater():
             item['runtime'] = data.get('runtime') or data.get('episode_run_time') or ""
             item['status'] = data.get('status') or ""
             item['genres'] = data.get('genres', "") or ""
+            item['vote_average'] = data.get('vote_average', "") or 0
+            item['popularity'] = data.get('popularity', "") or 0
                 
             if item.get('release_date', "") !=  data.get('release_date', ""):
                 item['release_date'] = data.get('release_date', "")
