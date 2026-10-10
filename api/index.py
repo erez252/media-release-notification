@@ -37,8 +37,6 @@ def is_authorized(body):
     user_password = body.get("password")
     return isinstance(user_password, str) and user_password == os.environ.get('PASSWORD')
 
-
-
 def get_db_data_v2():
     response = requests.post(
     UPSTASH_REDIS_REST_URL,
@@ -152,21 +150,6 @@ def send_movie_notification(item, time):
         }
     if item.get("notifications"):
         requests.post(DISCORD_URL, json=discord_msg)
-
-    
-def send_to_qstush_movie(seconds_left, body):
-    
-    target_url = "https://media-release-notification.vercel.app/api/notification/movie"
-    qstash_task_header= {
-        "Authorization": f"Bearer {QSTASH_TOKEN}",
-        "Content-Type": "application/json",
-        "Upstash-Delay": f"{seconds_left}s",
-        "Upstash-Forward-Authorization": f"Bearer {os.environ.get('PASSWORD')}"
-    }
-    qstash_publish_endpoint = f"{QSTASH_URL}/publish/{target_url}"
-    qstash_task_payload = body
-    
-    requests.post(qstash_publish_endpoint, headers=qstash_task_header, json=qstash_task_payload)
 
 def send_game_to_qstush(delay, body):
     target_url = "https://media-release-notification.vercel.app/api/notification/game"
@@ -298,7 +281,6 @@ def check_if_item_in_the_list(media_id, media_type):
             return True
     return False
 
- 
 def send_game_notification(body):
     try:
         db_data = get_db_data_v2()
@@ -405,41 +387,6 @@ def send_game_to_qstash(delay, body):
         qstash_task_payload = body
         requests.post(qstash_publish_endpoint, headers=qstash_task_header, json=qstash_task_payload)
         
-        
-@app.route('/api/get-data', methods=['POST'])
-def get_watchlist():
-    body = request.get_json() or {}
-    
-    authorized = is_authorized(body)
-    if not authorized:
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    return jsonify(get_db_data_v2()), 200
-
-@app.route('/api', methods=['GET'])
-def main_page():
-    return (jsonify({'yep': 'this is the main api page there is nothing here'})), 200
-
-@app.route('/api/remove', methods=['POST'])
-def remove_item ():
-    body = request.get_json() or {}
-    authorized = is_authorized(body)
-    if not authorized:
-        return jsonify({'error': 'Unauthorized'}), 401
-    movie_id = body.get("movieId")
-    if movie_id and str(movie_id).isdigit():
-        movie_id = int(movie_id)
-    movie_type = body.get("movieType")
-
-    
-    field = f"{movie_type}:{movie_id}"
-    requests.post(
-    UPSTASH_REDIS_REST_URL,
-        headers=headers,
-        json=["HDEL", "Watchlist-V2", field]
-    )
-    return jsonify({"message": f"Removed item with an id of {movie_id}"}), 200
-
 def get_data_for_add_item(media_id, media_type):
 
         movie_response = requests.get(f"https://api.themoviedb.org/3/{media_type}/{media_id}?api_key={TMDB_API_KEY}&append_to_response=external_ids")
@@ -509,6 +456,41 @@ def get_data_for_add_item(media_id, media_type):
         update_one_item_in_db(movie_data)
         
         return True
+        
+@app.route('/api/get-data', methods=['POST'])
+def get_watchlist():
+    body = request.get_json() or {}
+    
+    authorized = is_authorized(body)
+    if not authorized:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    return jsonify(get_db_data_v2()), 200
+
+@app.route('/api', methods=['GET'])
+def main_page():
+    return (jsonify({'yep': 'this is the main api page there is nothing here'})), 200
+
+@app.route('/api/remove', methods=['POST'])
+def remove_item ():
+    body = request.get_json() or {}
+    authorized = is_authorized(body)
+    if not authorized:
+        return jsonify({'error': 'Unauthorized'}), 401
+    movie_id = body.get("movieId")
+    if movie_id and str(movie_id).isdigit():
+        movie_id = int(movie_id)
+    movie_type = body.get("movieType")
+
+    
+    field = f"{movie_type}:{movie_id}"
+    requests.post(
+    UPSTASH_REDIS_REST_URL,
+        headers=headers,
+        json=["HDEL", "Watchlist-V2", field]
+    )
+    return jsonify({"message": f"Removed item with an id of {movie_id}"}), 200
+
 
 @app.route('/api/add', methods=['POST'])
 def add_item():
@@ -549,7 +531,6 @@ def add_item():
         # return jsonify({"error": "something went wrong", "message": "something went wrong while adding the media"}), 500
     except (TypeError, requests.exceptions.RequestException):
         return jsonify({"error": "something went wrong", "message": "something went wrong while adding the media"}), 500
-
 
 @app.route('/api/tmdb/search', methods=['POST'])
 def search_tmdb():
@@ -607,7 +588,6 @@ def search_tmdb():
     except KeyError:
         return jsonify({"error": "Bad Request", "message": "something went wrong fetching tmdb data"}), 502
 
-
 @app.route('/api/checker/movie', methods=['POST'])
 def check_movie_v2():
     try:
@@ -660,66 +640,7 @@ def check_movie_v2():
         return jsonify({"success": True, "message": "check_movie checked successfully"}), 200
     except Exception as e:
         return jsonify({"error": "Internal Server Error", "message": f"Server error: {e}"}), 500
-
-def check_movie_old():
-    
-    auth_header = request.headers.get("authorization", "")
-    if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    try:
-        limit = 20
-        db_data = get_db_data_v2()
-        for item in db_data:
-            if limit and not item.get("notification_soon", "") and item.get("media_type") == "movie" and not item.get("digital") and (not item.get("last_checked") or datetime.fromisoformat(item.get("last_checked")).date() != datetime.now(timezone.utc).date()):
-                
-                response = requests.get(f"https://api.themoviedb.org/3/movie/{item['id']}/release_dates?api_key={TMDB_API_KEY}")
-                data = response.json()
-                
-                limit -= 1
-                item["last_checked"] = datetime.now(timezone.utc).isoformat()
-                
-                results = data.get('results' , [])
-                
-                if not results:
-                    continue
-                
-                tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
-                movie_notification_now = False
-                sec_until_notification = 0
-                for country in results:
-                    if country.get('release_dates', []):
-                        for dates in country['release_dates']:
-                            if dates['type'] >= 4 and datetime.fromisoformat(dates['release_date']).date() <= datetime.now(timezone.utc).date():
-                                movie_notification_now = dates['release_date']                            
-                            elif dates['type'] >= 4 and datetime.fromisoformat(dates['release_date']).date() == tomorrow:
-                                target_time = datetime.fromisoformat(dates['release_date'])
-                                now = datetime.now(timezone.utc)
-                                time_remaining = target_time - now
-                                seconds_left = int(time_remaining.total_seconds())
-                                sec_until_notification = seconds_left
-                
-                
-                
-                if sec_until_notification:
-                    item["notification_soon"] = True
-                    body = {
-                                'daley': sec_until_notification,
-                                'show_info': item
-                            } 
-                    send_to_qstush_movie(sec_until_notification, body)
-                if movie_notification_now:
-                        item['digital'] = True
-                        if item.get("notifications"):
-                            send_movie_notification(item, dates['release_date'])
-                    
-                    
-        update_db(db_data)
-        return jsonify({"success": "true", "message": "check_movie checked successfully"}), 200
-    except Exception as e:
-        return jsonify({"error": "Bad Gateway", "message": f"Server error: {e}"}), 502
-        
-        
+      
 @app.route('/api/notification/tv', methods=['POST'])
 def send_tv_notification():
     try:
@@ -922,7 +843,6 @@ def send_tv_notification():
     except Exception as e:
         return jsonify({"success": False, "message": e}), 500
         
-
 @app.route('/api/notification/movie', methods=['POST'])
 def prepper_to_send_movie_notification():
     
@@ -1045,83 +965,6 @@ def check_tv_v2():
     except Exception as e:
         return jsonify({"error": "Bad Gateway", "message": f"Server error: {e}"}), 502
     
-
-
-def check_tv_old():
-    try:
-        auth_header = request.headers.get("authorization", "")
-        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
-            return jsonify({'error': 'Unauthorized'}), 401
-
-
-
-
-        db_data = get_db_data_v2()
-        new_episodes_all = []
-        request_tvmaze = 20
-        sleep_for = 15
-        sleep_on_item = 10 
-        for show in db_data:
-            try: 
-                if show.get("media_type") == "tv" and show.get("tvmaze_id") and (not show.get("last_checked") or datetime.fromisoformat(show.get("last_checked")).date() < datetime.now(timezone.utc).date()):
-
-                    if not request_tvmaze:
-                        break
-                    if request_tvmaze == sleep_on_item:
-                        time.sleep(sleep_for)
-
-                    response = requests.get(f"https://api.tvmaze.com/shows/{show.get('tvmaze_id')}/episodes")
-                    show["last_checked"] = datetime.now(timezone.utc).isoformat()
-                    request_tvmaze -= 1
-                    tvmaze_data = response.json() or {}
-                    new_episodes = []
-                    for ep in tvmaze_data:
-                        if datetime.fromisoformat(ep.get("airstamp")).astimezone(timezone.utc).date() == (datetime.now(timezone.utc).date() + timedelta(days=1)):
-                            new_episodes.append({'id': show.get('id'), 'show_name': show.get('title'), 'season': ep.get('season'), 'episode': ep.get('number'), 'airstamp': ep.get("airstamp"), 'airtime': ep.get('airtime'), 'type': ep.get("type", ""), 'name': ep.get("name", ""), 'poster_path': show.get("poster_path", "")})
-                    if new_episodes:        
-                        new_episodes_all.append(new_episodes)
-                        
-                    update_one_item_in_db(show)
-            except Exception:
-                continue
-
-        new_episodes_summery_all = []
-        for show in new_episodes_all:
-            grouped_by_date = {}
-            for ep in show:
-                date = ep["airstamp"]
-                if not date in grouped_by_date:
-                    grouped_by_date[date] = []
-                grouped_by_date[date].append(ep)
-                show_summary = []
-                for date, eps in grouped_by_date.items():
-                    show_summary.append({
-                        "airstamp": date,
-                        "episodes": eps
-                    })
-            new_episodes_summery_all.append(show_summary)
-
-        target_url = "https://media-release-notification.vercel.app/api/notification/tv"
-        for show in new_episodes_summery_all:
-            for timesteps in show:
-                target_time = datetime.fromisoformat(timesteps["airstamp"])
-                now = datetime.now(timezone.utc)
-                time_remaining = target_time - now
-                seconds_left = int(time_remaining.total_seconds())
-                qstash_task_header= {
-                    "Authorization": f"Bearer {QSTASH_TOKEN}",
-                    "Content-Type": "application/json",
-                    "Upstash-Delay": f"{seconds_left}s",
-                    "Upstash-Forward-Authorization": f"Bearer {os.environ.get('PASSWORD')}"
-                }
-                qstash_publish_endpoint = f"{QSTASH_URL}/publish/{target_url}"
-                qstash_task_payload = timesteps["episodes"]
-                response = requests.post(qstash_publish_endpoint, headers=qstash_task_header, json=qstash_task_payload)
-
-        return jsonify({"success": "true", "message": "check_tv notification successfully"}), 200
-    except Exception as e:
-        return jsonify({"error": "Bad Gateway", "message": f"Server error: {e}"}), 502
-    
 @app.route('/api/updater', methods=['POST'])
 def updater():
     
@@ -1148,10 +991,6 @@ def updater():
                     if response.status_code == 200:
                         tvmaze_data = response.json()
                         item["tvmaze_id"] = tvmaze_data.get("id")
-                    
-                    
-                    
-            
             
             response = requests.get(f"https://api.themoviedb.org/3/{item['media_type']}/{item['id']}?api_key={TMDB_API_KEY}&append_to_response=release_dates,external_ids")
             data = response.json()
@@ -1179,6 +1018,7 @@ def updater():
             item['imdb_id'] = data.get('imdb_id') or (data.get('external_ids') or {}).get("imdb_id") or ""
                 
             item['last_updated'] = datetime.now(timezone.utc).isoformat()
+           
             try:
                 if item.get('media_type', "") == "movie":
                     release_dates = (data.get('release_dates') or {}).get('results')
@@ -1216,14 +1056,9 @@ def updater():
                         
             except Exception:
                 continue
-                
-
-
-                
-            
+                 
     update_db(db_data)
-    return jsonify({"success": "true", "message": "Updated the media"}), 200
-
+    return jsonify({"success": True, "message": "Updated the media"}), 200
 
 @app.route('/api/checker/game', methods=['POST'])
 def get_new_games():
@@ -1316,216 +1151,7 @@ def get_new_games():
         return jsonify({"success": "true", "message": "check_game checked successfully"}), 200
     except Exception as e:
         return jsonify({"success": "false", "message": f"{e}"}), 500
-        
 
-
-
-def game_checker_old():
-    
-    auth_header = request.headers.get("authorization", "")
-    if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    watchlist = get_db_data_v2()
-    
-    limit = 18
-    items_before_sleeping = 3
-    sleep_for = 2
-    
-    count = 0
-
-    for item in watchlist:
-        
-        if count == limit:
-            break
-        try:
-            if item.get("media_type") == "game" and (not item.get("last_checked") or datetime.fromisoformat(item.get("last_checked")).date() != datetime.now(timezone.utc).date()):
-
-                # checking if we need to wait a bit before the next req
-                if count and count % items_before_sleeping == 0:
-                    time.sleep(sleep_for)
-
-
-                fields = (
-                    "name,cover.image_id,first_release_date,game_type,game_status,genres.name,hypes,summary,rating,rating_count,"
-                    "involved_companies.company.name,involved_companies.developer,involved_companies.publisher,"
-                    "platforms.abbreviation,"
-                    "release_dates.status.name,release_dates.date,"
-                    "dlcs.name,dlcs.first_release_date,dlcs.game_type.type,dlcs.cover.image_id,"
-                    "expanded_games.name,expanded_games.first_release_date,expanded_games.game_type.type,expanded_games.cover.image_id,"
-                    "expansions.name,expansions.first_release_date,expansions.game_type.type,expansions.cover.image_id,"
-                    "ports.name,ports.first_release_date,ports.game_type.type,ports.cover.image_id,"
-                    "remakes.name,remakes.first_release_date,remakes.game_type.type,remakes.cover.image_id,"
-                    "remasters.name,remasters.first_release_date,remasters.game_type.type,remasters.cover.image_id,"
-                    "standalone_expansions.name,standalone_expansions.first_release_date,standalone_expansions.game_type.type,standalone_expansions.cover.image_id"
-                )
-                response = requests.post(f"https://api.igdb.com/v4/games" ,headers=igdb_headers, data=f'fields {fields}; where id = {item["id"]};')
-                count += 1
-                data = response.json()
-                if not data:
-                    continue
-                game = data[0]
-                item["last_checked"] = datetime.now(timezone.utc).isoformat()
-                #TODO update the item data with the new game data
-                
-                item_timestamp_raw = game.get("first_release_date")
-                item_release_date = ""
-                if item_timestamp_raw is not None:
-                    item_original_release_date = float(item_timestamp_raw)
-                    item_release_date = datetime.fromtimestamp(item_original_release_date, timezone.utc).date().isoformat()
-
-                item["title"] = game.get("name") or ""
-                item["poster_path"] = (game.get("cover") or {}).get("image_id") or ""
-                item["overview"] = game.get("summary") or ""
-                item["genres"] = game.get("genres") or []
-                item["release_date"] = item_release_date
-                item["popularity"] = game.get("hypes") or 0
-                item["vote_average"] = game.get("rating") or 0
-                item["vote_count"] = game.get("rating_count") or 0
-                
-
-                # chaking 
-
-
-                # **checking main game**
-
-                #checking for shod droop
-                if not item.get("released") and not item.get("notification_soon"):
-                    if game.get("first_release_date") and datetime.fromtimestamp(game.get("first_release_date"), timezone.utc).date() <= datetime.now(timezone.utc).date():
-                        body = {
-                                "id": game.get("id"),
-                                "media_type": "game",
-                                "title": game.get("name", ""), 
-                                "overview": game.get("summary", ""),
-                                "poster_path": game.get("cover", {}).get("image_id"),
-                                "genres": game.get("genres", []),
-                                "involved_companies": game.get("involved_companies", []),
-                                "platforms": game.get("platforms", []),
-                                'release_date': game.get("first_release_date")
-                            }
-                        item["released"] = True
-                        send_game_to_qstush(0, body)
-                        update_one_item_in_db(item)
-                        continue
-
-                    #checking for tomorrow dates
-                    release_dates = game.get("release_dates") or []
-
-                    upcoming_main_game_dates = []
-                    for date in release_dates:
-                        if date.get("date") and datetime.fromtimestamp(date.get("date"), timezone.utc).date() == datetime.now(timezone.utc).date() + timedelta(days=1):
-                            upcoming_main_game_dates.append({"date": date['date'], "status": (date.get("status") or {}).get("name", "")})
-
-                    if upcoming_main_game_dates:
-                        body = {
-                           "id": game.get("id"),
-                           "media_type": "game",
-                           "title": game.get("name", ""), 
-                           "overview": game.get("summary", ""),
-                           "poster_path": game.get("cover", {}).get("image_id"),
-                           "genres": game.get("genres", []),
-                           "involved_companies": game.get("involved_companies", []),
-                           "platforms": game.get("platforms", []),
-                           'release_dates': upcoming_main_game_dates
-                        }
-                        time_in_sec = max(0, int(upcoming_main_game_dates[0]["date"] - datetime.now(timezone.utc).timestamp()))
-                        item["notification_soon"] = True
-                        send_game_to_qstush(time_in_sec, body)
-                        update_one_item_in_db(item)
-                        continue
-                    
-                    
-                # **side content*
-                all_content = []
-                content_fields = [
-                    "dlcs", 
-                    "expanded_games", 
-                    "expansions", 
-                    "remakes", 
-                    "remasters", 
-                    "standalone_expansions",
-                    "ports"
-                ]
-                for field in content_fields:
-                    items = game.get(field)
-                    if items:
-                        all_content.extend(items)
-
-
-
-                # getting shadow drop
-                missed_content = []
-                raw_date = item.get("notifications_enabled_at")
-                notifications_enabled_at = datetime.fromisoformat(raw_date) if raw_date else datetime.now(timezone.utc)
-                if notifications_enabled_at.tzinfo is None:
-                    notifications_enabled_at = notifications_enabled_at.replace(tzinfo=timezone.utc)
-                for dlc in all_content:
-                    dlc_id = dlc.get("id")
-                    try:
-                        dlc_release = datetime.fromtimestamp(dlc.get("first_release_date"), timezone.utc)
-                    except TypeError:
-                        dlc_release = False
-                    if dlc_release and  dlc_release >= notifications_enabled_at and not dlc_release > datetime.now(timezone.utc):
-                        if dlc_id and dlc_id not in item.get("notified_content_ids", []):
-                            missed_content.append(dlc)
-
-                if missed_content:
-                    body = {
-                        "id": game.get("id"),
-                        "media_type": "game",
-                        "title": game.get("name", ""),
-                        "overview": game.get("summary", ""),
-                        "poster_path": (game.get("cover") or {}).get("image_id"),
-                        "genres": game.get("genres", []),
-                        "involved_companies": game.get("involved_companies", []),
-                        "platforms": game.get("platforms", []),
-                        "content": missed_content
-                    }
-                    notified_ids = item.setdefault("notified_content_ids", [])
-                    notified_ids.extend([dlc["id"] for dlc in missed_content if dlc.get("id")])
-                    send_game_to_qstush(0, body)
-                    update_one_item_in_db(item)
-                    continue
-                
-                # side content tomorrow
-                upcoming_side_dates = []
-                for dlc in all_content:
-                    dlc_id = dlc.get("id")
-                    try:
-                        dlc_release = datetime.fromtimestamp(dlc.get("first_release_date"), timezone.utc)
-                    except TypeError:
-                        dlc_release = False
-                    if dlc_release and dlc_release.date() == datetime.now(timezone.utc).date() + timedelta(days=1):
-                        if dlc_id and dlc_id not in item.get("notified_content_ids", []):
-                            upcoming_side_dates.append(dlc)
-
-                if upcoming_side_dates:
-                    body = {
-                        "id": game.get("id"),
-                        "media_type": "game",
-                        "title": game.get("name", ""),
-                        "overview": game.get("summary", ""),
-                        "poster_path": (game.get("cover") or {}).get("image_id"),
-                        "genres": game.get("genres", []),
-                        "involved_companies": game.get("involved_companies", []),
-                        "platforms": game.get("platforms", []),
-                        "content": upcoming_side_dates
-                    }
-                    notified_ids = item.setdefault("notified_content_ids", [])
-                    notified_ids.extend([dlc["id"] for dlc in upcoming_side_dates if dlc.get("id")])
-                    if upcoming_side_dates[0].get("first_release_date"):
-                        time_in_sec = max(0, int(upcoming_side_dates[0]["first_release_date"] - datetime.now(timezone.utc).timestamp()))
-                    else:
-                        time_in_sec = 0
-                    send_game_to_qstush(time_in_sec, body)
-                    
-                update_one_item_in_db(item)
-        except Exception as e:
-            continue
-    return jsonify({"success": "true", "message": "check_game checked successfully"}), 200
-    
-    
-    
 @app.route('/api/notification/game', methods=['POST'])
 def get_game_notification():
         auth_header = request.headers.get("authorization", "")
@@ -1538,151 +1164,6 @@ def get_game_notification():
             return jsonify({"success": True, "message": "game notification send successfully"}), 200
         
         return jsonify({"success": False, "message": f"{faild}"}), 500
-
-
-def send_game_notification_old():
-    try:
-        auth_header = request.headers.get("authorization", "")
-        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
-            return jsonify({'error': 'Unauthorized'}), 401
-
-        body = request.get_json() or {}
-        if body.get("release_dates"):
-
-            item = get_item_data_from_db(body)
-            item["released"] = True
-            item["status"] = "Released"
-            update_one_item_in_db(item)
-
-            name = body.get("title")
-            poster = f"https://images.igdb.com/igdb/image/upload/t_original/{body.get("poster_path", "")}.jpg"
-
-            developer = []
-            involved_companies = body.get('involved_companies', [])
-            for companie in involved_companies:
-                if companie.get("developer"):
-                    developer.append(companie.get("company", {}).get("name", ""))
-            developer = ", ".join(developer)
-
-            release_dates = "Error"
-            raw_release_date = body.get('release_dates')[0]
-
-            if raw_release_date.get('date'):
-                release_dates = datetime.fromtimestamp(raw_release_date.get('date'), timezone.utc).date().isoformat()
-
-            platforms = []
-            if body.get("platforms"):
-                for platform in body.get("platforms"):
-                   platforms.append(platform.get("abbreviation"))
-                platforms = ", ".join(platforms)
-            else:
-                platforms = "Unknown(?)"
-
-            genres = []
-            if body.get("genres"):
-                for genre in body.get("genres"):
-                    genres.append(genre.get("name", ""))
-                genres = ", ".join(genres)
-            else:
-                genres = "Unknown(?)"
-
-            discord_msg = {
-              "content": "🎮 **New Game Released!**",
-              "embeds": [
-                {
-                  "title": name,
-                  "description": "Now available to play.",
-                  "color": 15418782,
-                  "fields": [
-                    {
-                      "name": "Release Date",
-                      "value": f"`{release_dates}`",
-                      "inline": True
-                    },
-                    {
-                      "name": "Developer",
-                      "value": developer or "Unknown(?)",
-                      "inline": True
-                    },
-                    {
-                      "name": "Platforms",
-                      "value": platforms
-                    },
-                    {
-                      "name": "Genres",
-                      "value": genres
-                    }
-                  ],
-                  "footer": {
-                    "text": "Game Release Notification"
-                  },
-                  "timestamp": datetime.now(timezone.utc).isoformat(),
-                  "image": {
-                    "url": poster
-                  }
-                }
-              ],
-              "attachments": []
-            }
-            item = get_item_data_from_db(body)
-            if item.get("notifications"):
-                requests.post(DISCORD_URL, json=discord_msg)
-
-        elif body.get("content"):
-            content = body.get("content")[0]
-
-            name = body.get("title")
-            content_type = content.get("game_type", {}).get('type')
-            release_date = datetime.fromtimestamp(content.get("first_release_date"), timezone.utc).date().isoformat()
-            expansion_title = content.get('name') or "Unknown(?)"
-            poster = f"https://images.igdb.com/igdb/image/upload/t_cover_big/{(content.get('cover') or {}).get('image_id') or content.get('cover')}.jpg"
-
-
-            discord_msg = {
-              "content": f"🧩 **New {content_type or "DLC / Expansion"} Released!**",
-              "embeds": [
-                {
-                  "title": name,
-                  "description": "New downloadable content is now available.",
-                  "color": 5814783,
-                  "fields": [
-                    {
-                      "name": "Type",
-                      "value": f"`{content_type or "Unknown(?)"}`",
-                      "inline": True
-                    },
-                    {
-                      "name": "Release Date",
-                      "value": f"`{release_date}`",
-                      "inline": True
-                    },
-                    {
-                      "name": "Expansion Title",
-                      "value": f"**{expansion_title}**"
-                    }
-                  ],
-                  "footer": {
-                    "text": "Game DLC Notification"
-                  },
-                  "timestamp": datetime.now(timezone.utc).isoformat(),
-                  "thumbnail": {
-                    "url": poster
-                  }
-                }
-              ],
-              "attachments": []
-            }
-            item = get_item_data_from_db(body)
-            if item.get("notifications"):
-                requests.post(DISCORD_URL, json=discord_msg)
-        else:
-            return jsonify({"success": "false", "message": "game notification was not send"}), 200
-
-
-
-        return jsonify({"success": "true", "message": "game notification send successfully"}), 200
-    except Exception as e:
-        return jsonify({"success": "false", "message": f"{e}"}), 500
 
 @app.route('/api/toggle/notification', methods=['POST'])
 def toggle_notification():
@@ -1706,8 +1187,6 @@ def toggle_notification():
 
     else:
         return jsonify({"success": "false", "notification_status": "unknown"}), 500 
-        
-
     
 @app.route('/api/info/movie', methods=['POST'])
 def get_movie_info():
@@ -2026,8 +1505,6 @@ def get_tv_info():
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
 
-
-
 @app.route('/api/sync/stremio', methods=['POST'])
 def stremio_sync():
     try:
@@ -2115,85 +1592,7 @@ def stremio_sync():
             )
         return jsonify({"success": True, "message": f"successfully sync the data"}), 200
     except Exception as e:
-        return jsonify({"success": False, "message": f"{e}"}), 500
-
-
-def stremio_sync_old():
-    try:
-        
-        auth_header = request.headers.get("authorization", "")
-        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
-            return jsonify({'error': 'Unauthorized'}), 401
-        
-        response = requests.post(
-            UPSTASH_REDIS_REST_URL,
-            headers=headers,
-            json=["HGET", "stremio", "ignor_list"]
-        )
-        ignor_list = json.loads(response.json()['result'])
-        db_data = get_db_data_v2()
-        body = {
-            "authKey": STREMIO_AUTHKEY,
-            "collection": "libraryItem",
-            "all": True
-        }
-        response = requests.post("https://api.strem.io/api/datastoreGet", json=body, headers=stremio_headers)
-
-        data = response.json()
-        result = data.get("result") or []
-        items_to_consider = [
-            item for item in result
-                if item.get("_id", "").startswith(("tt", "tmdb"))
-                and item.get("type") in ("movie", "series")
-                and (
-                    not item.get("removed")
-                    or (item.get("type") == "series" and bool((item.get("state") or {}).get("watched")))
-                )
-        ]   
-        for item in items_to_consider:
-            id = ""
-            ignor_list_id = ""
-            media_type = ""
-            if item.get("_id").startswith("tmdb:"):
-                id = item.get('_id').split(":")[1]
-                if item.get('type') == "movie":
-                    ignor_list_id = f"tmdb:movie:{id}"
-                    media_type = "movie"
-                elif item.get('type') == "series":
-                    ignor_list_id = f"tmdb:tv:{id}"
-                    media_type = "tv"
-            elif item.get("_id").startswith("tt") and item.get("_id") not in ignor_list:
-                response = requests.get(f"https://api.themoviedb.org/3/find/{item.get('_id')}?external_source=imdb_id&api_key={TMDB_API_KEY}")
-                time.sleep(0.1)
-                item_tmdb = response.json() or {}
-                item_tmdb = item_tmdb.get("movie_results") or item_tmdb.get("tv_results") or item_tmdb.get("tv_episode_results") or item_tmdb.get("tv_season_results") or {}
-                if item_tmdb:
-                    item_tmdb = item_tmdb[0]
-                    id = item_tmdb.get("id") or ""
-                    media_type = item_tmdb.get("media_type") or ""
-                    ignor_list_id = item.get("_id")
-
-            if id and ignor_list_id and media_type:
-                if ignor_list_id not in ignor_list:
-                    ignor_list.append(ignor_list_id)
-                    alrady_in_the_list = False
-                    for media in db_data:
-                        if media.get("media_type") == media_type and str(media.get("id")) == str(id):
-                            alrady_in_the_list = True
-                            break
-                    if not alrady_in_the_list:
-                        get_data_for_add_item(id, media_type)
-
-
-        requests.post(
-            UPSTASH_REDIS_REST_URL,
-            headers=headers,
-            json=["HSET", "stremio", "ignor_list", json.dumps(ignor_list)]
-        )
-        return jsonify({"success": True, "message": f"successfully sync the data"}), 200
-    except Exception as e:
-        return jsonify({"success": False, "message": f"{e}"}), 500
-    
+        return jsonify({"success": False, "message": f"{e}"}), 500  
 
 @app.route('/api/calendar/make', methods=['POST'])
 def make_calendar():
