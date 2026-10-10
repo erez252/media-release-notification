@@ -1157,7 +1157,7 @@ def updater():
             if item.get('first_air_date', "") !=  data.get('first_air_date', ""):
                 item['first_air_date'] = data.get('first_air_date', "")
 
-            if item.get('last_air_date', "") !=  data.get('last_air_date', ""):
+            if item.get('media_type', "") == "tv":
                 item['last_air_date'] = data.get('last_air_date', "")
 
             if data.get('imdb_id') and item.get('imdb_id', "") !=  data.get('imdb_id', ""):
