@@ -442,7 +442,7 @@ def remove_item ():
 
 def get_data_for_add_item(media_id, media_type):
 
-        movie_response = requests.get(f"https://api.themoviedb.org/3/{media_type}/{media_id}?api_key={TMDB_API_KEY}")
+        movie_response = requests.get(f"https://api.themoviedb.org/3/{media_type}/{media_id}?api_key={TMDB_API_KEY}&append_to_response=external_ids")
         
         
         digital = check_if_digital(media_id)
@@ -479,9 +479,9 @@ def get_data_for_add_item(media_id, media_type):
             else:
                 movie_data["last_episode_to_air"] = None
 
-            response = requests.get(f"https://api.themoviedb.org/3/tv/{raw_movie_data.get('id')}/external_ids?api_key={TMDB_API_KEY}")
+           
 
-            external_ids = response.json()
+            external_ids = raw_movie_data.get("external_ids")
             
             if external_ids.get("imdb_id"):
                 movie_data["imdb_id"] = external_ids.get("imdb_id")
@@ -1131,6 +1131,7 @@ def updater():
     
     db_data = get_db_data_v2()
     limit = 20
+    tvmaze_limit = 10
     for item in db_data:
         if not limit:
             break
@@ -1138,7 +1139,21 @@ def updater():
         
         if ((not item.get('last_updated')) or datetime.fromisoformat(item.get('last_updated')).date() != datetime.now(timezone.utc).date()) and item.get('media_type', "") != "game":
             
-            response = requests.get(f"https://api.themoviedb.org/3/{item['media_type']}/{item['id']}?api_key={TMDB_API_KEY}&append_to_response=release_dates")
+            if item['media_type'] == "tv" and not item.get("tvmaze_id"):
+                if not tvmaze_limit:
+                    continue
+                if item.get("imdb_id"):
+                    response = requests.get(f"https://api.tvmaze.com/lookup/shows?imdb={item.get("imdb_id")}")
+                    tvmaze_limit -= 1
+                    if response.status_code == 200:
+                        tvmaze_data = response.json()
+                        item["tvmaze_id"] = tvmaze_data.get("id")
+                    
+                    
+                    
+            
+            
+            response = requests.get(f"https://api.themoviedb.org/3/{item['media_type']}/{item['id']}?api_key={TMDB_API_KEY}&append_to_response=release_dates,external_ids")
             data = response.json()
             
             limit -= 1
@@ -1160,8 +1175,8 @@ def updater():
             if item.get('media_type', "") == "tv":
                 item['last_air_date'] = data.get('last_air_date', "")
 
-            if data.get('imdb_id') and item.get('imdb_id', "") !=  data.get('imdb_id', ""):
-                item['imdb_id'] = data.get('imdb_id', "")
+
+            item['imdb_id'] = data.get('imdb_id') or (data.get('external_ids') or {}).get("imdb_id") or ""
                 
             item['last_updated'] = datetime.now(timezone.utc).isoformat()
             try:
