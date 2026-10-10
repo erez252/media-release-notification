@@ -1035,10 +1035,11 @@ def updater():
                                         break
                                 
                         all_release_dates = []
-                        for date in release_dates:
-                            date_obj = (date.get('release_dates')[0] or {})
-                            all_release_dates.append(date_obj)
-                        sorted(all_release_dates, key=lambda _ : _.get('release_date'))
+                        for country in release_dates:
+                            for date_obj in country.get('release_dates', []):
+                                if date_obj.get('release_date'):
+                                    all_release_dates.append(date_obj)
+                        all_release_dates.sort(key=lambda _: _.get('release_date'))
                         first_theatrical_release = ""
                         first_digital_release = ""
                         for release_date in all_release_dates:
