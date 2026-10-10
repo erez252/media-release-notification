@@ -2370,7 +2370,7 @@ def catalog(content_type, catalog_id_path):
         clean_path = urllib.parse.unquote(catalog_id_path.replace(".json", ""))
         
         catalog_id = clean_path
-        selected_option = "Sort: Newest First"
+        selected_option = "Sort: Latest"
         
         if "/" in clean_path:
             catalog_id, args_string = clean_path.split("/", 1)
