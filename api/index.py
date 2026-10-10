@@ -2344,7 +2344,7 @@ def manifest():
                     {
                       "name": "genre",
                       "isRequired": False,
-                      "options": ["Sort: Newest First",  "Sort: Oldest First", "Sort: Release Date Newest First", "Sort: Release Date Oldest First", "Sort: Popularity Highest First", "Sort: Popularity Lowest First", "Sort: Alphabetical", "Availble on Digital", "Not Availble on Digital", "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History", "Horror", "Music", "Mystery", "Romance", "Science Fiction", "TV Movie", "Thriller", "War", "Western"]
+                      "options": ["Sort: Latest", "Sort: Newest First",  "Sort: Oldest First", "Sort: Release Date Newest First", "Sort: Release Date Oldest First", "Sort: Popularity Highest First", "Sort: Popularity Lowest First", "Sort: Alphabetical", "Availble on Digital", "Not Availble on Digital", "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History", "Horror", "Music", "Mystery", "Romance", "Science Fiction", "TV Movie", "Thriller", "War", "Western"]
                     }
                 ]
             },
@@ -2356,7 +2356,7 @@ def manifest():
                     {
                       "name": "genre",
                       "isRequired": False,
-                      "options": ["Sort: Newest First",  "Sort: Oldest First", "Sort: First Air Date Newest First", "Sort: First Air Date Oldest First", "Sort: Last Air Date Newest First", "Sort: Last Air Date Oldest First", "Sort: Popularity Highest First", "Sort: Popularity Lowest First", "Sort: Alphabetical", "Action & Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Kids", "Mystery", "News", "Reality", "Sci-Fi & Fantasy", "Soap", "Talk", "War & Politics", "Western"]
+                      "options": ["Sort: Latest", "Sort: Newest First",  "Sort: Oldest First", "Sort: First Air Date Newest First", "Sort: First Air Date Oldest First", "Sort: Last Air Date Newest First", "Sort: Last Air Date Oldest First", "Sort: Popularity Highest First", "Sort: Popularity Lowest First", "Sort: Alphabetical", "Action & Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Kids", "Mystery", "News", "Reality", "Sci-Fi & Fantasy", "Soap", "Talk", "War & Politics", "Western"]
                     }
                 ]
             }
@@ -2406,12 +2406,15 @@ def catalog(content_type, catalog_id_path):
                 db_data = sorted(db_data, key=lambda item: item.get("popularity") or 0, reverse=True)
             elif selected_option == "Sort: Popularity Lowest First":
                 db_data = sorted(db_data, key=lambda item: item.get("popularity") or 0)
-            
-            
             elif selected_option == "Availble on Digital":
                 db_data = [item for item in db_data if item.get("digital", "")]
             elif selected_option == "Not Availble on Digital":
                 db_data = [item for item in db_data if not item.get("digital", "")]
+            elif selected_option == "Sort: Latest":
+                db_data = sorted(db_data, key=lambda item: item.get("first_air_date", "") if item.get("media_type") == "tv" else item.get("digital_release", "") if item.get("digital") else "", reverse=True)
+
+                
+
             else:
                 filtered_data = []
                 for item in db_data:
