@@ -2381,7 +2381,6 @@ def catalog(content_type, catalog_id_path):
         
         if catalog_id == "my_custom_catalog":
             db_data = get_db_data_v2()
-            db_data = sorted(db_data, key=lambda item : item.get("added_date", ""), reverse=True)
 
 
             if selected_option == "Sort: Newest First":
@@ -2430,6 +2429,8 @@ def catalog(content_type, catalog_id_path):
                     if selected_option in genre_names:
                         filtered_data.append(item)
                 db_data = filtered_data
+                db_data = sorted(db_data, key=lambda item : item.get("added_date", ""), reverse=True)
+
 
 
             if content_type == "movie":
