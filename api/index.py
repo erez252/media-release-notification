@@ -2411,7 +2411,7 @@ def catalog(content_type, catalog_id_path):
             elif selected_option == "Not Availble on Digital":
                 db_data = [item for item in db_data if not item.get("digital", "")]
             elif selected_option == "Sort: Latest":
-                db_data = sorted(db_data, key=lambda item: item.get("last_air_date", "1970-01-01") if (item.get("media_type") == "tv") else (item.get("digital_release", "") if item.get("digital") else "") or "1970-01-01", reverse=True)
+                db_data = sorted(db_data, key=lambda item: item.get("first_air_date", "1970-01-01") if (item.get("media_type") == "tv") else (item.get("digital_release", "") if item.get("digital") else "") or "1970-01-01", reverse=True)
 
                 
 
