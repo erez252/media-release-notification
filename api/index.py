@@ -2414,7 +2414,7 @@ def catalog(content_type, catalog_id_path):
                     db_data, 
                     key=lambda item: (
                         item.get("last_air_date") if item.get("media_type") == "tv" 
-                        else (item.get("digital_release") if item.get("digital") else "")
+                        else (item.get("digital_release") or item.get("release_date") if item.get("digital") else "")
                     ) or "", 
                     reverse=True
                 )
