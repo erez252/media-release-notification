@@ -2031,7 +2031,7 @@ def manifest():
                     {
                       "name": "genre",
                       "isRequired": False,
-                      "options": ["Sort: Latest", "Sort: Newest First",  "Sort: Oldest First", "Sort: Release Date Newest First", "Sort: Release Date Oldest First", "Sort: Popularity Highest First", "Sort: Popularity Lowest First", "Sort: Alphabetical", "Availble on Digital", "Not Availble on Digital", "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History", "Horror", "Music", "Mystery", "Romance", "Science Fiction", "TV Movie", "Thriller", "War", "Western"]
+                      "options": ["Sort: Dynamic", "Sort: Latest", "Sort: Newest First",  "Sort: Oldest First", "Sort: Release Date Newest First", "Sort: Release Date Oldest First", "Sort: Popularity Highest First", "Sort: Popularity Lowest First", "Sort: Alphabetical", "Availble on Digital", "Not Availble on Digital", "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History", "Horror", "Music", "Mystery", "Romance", "Science Fiction", "TV Movie", "Thriller", "War", "Western"]
                     }
                 ]
             },
@@ -2043,7 +2043,7 @@ def manifest():
                     {
                       "name": "genre",
                       "isRequired": False,
-                      "options": ["Sort: Latest", "Sort: Newest First",  "Sort: Oldest First", "Sort: First Air Date Newest First", "Sort: First Air Date Oldest First", "Sort: Last Air Date Newest First", "Sort: Last Air Date Oldest First", "Sort: Popularity Highest First", "Sort: Popularity Lowest First", "Sort: Alphabetical", "Action & Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Kids", "Mystery", "News", "Reality", "Sci-Fi & Fantasy", "Soap", "Talk", "War & Politics", "Western"]
+                      "options": ["Sort: Dynamic", "Sort: Latest", "Sort: Newest First",  "Sort: Oldest First", "Sort: First Air Date Newest First", "Sort: First Air Date Oldest First", "Sort: Last Air Date Newest First", "Sort: Last Air Date Oldest First", "Sort: Popularity Highest First", "Sort: Popularity Lowest First", "Sort: Alphabetical", "Action & Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Kids", "Mystery", "News", "Reality", "Sci-Fi & Fantasy", "Soap", "Talk", "War & Politics", "Western"]
                     }
                 ]
             }
@@ -2057,7 +2057,7 @@ def catalog(content_type, catalog_id_path):
         clean_path = urllib.parse.unquote(catalog_id_path.replace(".json", ""))
         
         catalog_id = clean_path
-        selected_option = "Sort: Latest"
+        selected_option = "Sort: Dynamic"
         
         if "/" in clean_path:
             catalog_id, args_string = clean_path.split("/", 1)
@@ -2105,7 +2105,34 @@ def catalog(content_type, catalog_id_path):
                     ) or "", 
                     reverse=True
                 )
+            elif selected_option == "Sort: Dynamic":
+                now = datetime.now().date()
+                w_start = (now - timedelta(days=3)).isoformat()
+                w_end = (now + timedelta(days=3)).isoformat()
+                
+                db_data = sorted(
+                    db_data,
+                    key=lambda i: (
+                        # Group 0: In ±3 day window comes first. Group 1: Fallback.
+                        0 if any(w_start <= d.split("T")[0] <= w_end for d in [
+                            i.get("next_air_date"), 
+                            i.get("last_air_date"), 
+                            i.get("digital_release") if i.get("digital") else None, 
+                            i.get("release_date")
+                        ] if d) else 1,
 
+                        # Sub-sort for window items (chronological order, ascending)
+                        next((d.split("T")[0] for d in [
+                            i.get("next_air_date"), 
+                            i.get("last_air_date"), 
+                            i.get("digital_release") if i.get("digital") else None, 
+                            i.get("release_date")
+                        ] if d and w_start <= d.split("T")[0] <= w_end), ""),
+
+                        # Fallback sub-sort: newest added_date first (descending via negative ordinal)
+                        -datetime.strptime((i.get("added_date") or "1970-01-01").split("T")[0], "%Y-%m-%d").toordinal()
+                    )
+                )
                 
 
             else:
