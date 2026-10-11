@@ -419,6 +419,7 @@ def get_data_for_add_item(media_id, media_type):
         else:
             movie_data["first_air_date"] = raw_movie_data.get("first_air_date", None)
             movie_data["last_air_date"] = raw_movie_data.get("last_air_date", None)
+            movie_data['next_air_date'] = (raw_movie_data.get('next_episode_to_air') or {}).get("air_date") or None
             
             last_episode_to_air = raw_movie_data.get("last_episode_to_air", {})
             if last_episode_to_air:
@@ -1013,6 +1014,7 @@ def updater():
 
             if item.get('media_type', "") == "tv":
                 item['last_air_date'] = data.get('last_air_date', "")
+                item['next_air_date'] = (data.get('next_episode_to_air') or {}).get("air_date") or None
 
 
             item['imdb_id'] = data.get('imdb_id') or (data.get('external_ids') or {}).get("imdb_id") or ""
@@ -1996,6 +1998,17 @@ def make_recommendations():
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
 
+@app.route('/api/recommendations/get', methods=['POST'])
+def get_recommendations():
+    
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    response = requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["GET", "Recommendations"])
+    result_str = response.json().get('result')
+    data = json.loads(result_str) if result_str else []
+    return jsonify(data), 200
 
 @app.route('/api/manifest.json', methods=['GET'])
 def manifest():
