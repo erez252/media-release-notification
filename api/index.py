@@ -1061,6 +1061,73 @@ def updater():
     update_db(db_data)
     return jsonify({"success": True, "message": "Updated the media"}), 200
 
+@app.route('/api/updater/game', methods=['POST'])
+def game_updater():
+    try: 
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        watchlist = get_db_data_v2()
+        limit = 18
+        items_before_sleeping = 3
+        sleep_for = 2
+
+        count = 0
+
+        for item in watchlist:
+            if count == limit:
+                break
+
+            if item.get("media_type") == "game" and (not item.get("last_updated") or datetime.fromisoformat(item.get("last_updated")).date() != datetime.now(timezone.utc).date()):
+
+                if count and count % items_before_sleeping == 0:
+                    time.sleep(sleep_for)
+
+                fields = (
+                        "name,cover.image_id,first_release_date,game_type,game_status,genres.name,hypes,summary,rating,rating_count,"
+                        "involved_companies.company.name,involved_companies.developer,involved_companies.publisher,"
+                        "platforms.abbreviation,"
+                        "release_dates.status.name,release_dates.date,"
+                        "dlcs.name,dlcs.first_release_date,dlcs.game_type.type,dlcs.cover.image_id,"
+                        "expanded_games.name,expanded_games.first_release_date,expanded_games.game_type.type,expanded_games.cover.image_id,"
+                        "expansions.name,expansions.first_release_date,expansions.game_type.type,expansions.cover.image_id,"
+                        "ports.name,ports.first_release_date,ports.game_type.type,ports.cover.image_id,"
+                        "remakes.name,remakes.first_release_date,remakes.game_type.type,remakes.cover.image_id,"
+                        "remasters.name,remasters.first_release_date,remasters.game_type.type,remasters.cover.image_id,"
+                        "standalone_expansions.name,standalone_expansions.first_release_date,standalone_expansions.game_type.type,standalone_expansions.cover.image_id"
+                    )
+                response = requests.post(f"https://api.igdb.com/v4/games" ,headers=igdb_headers, data=f'fields {fields}; where id = {item["id"]};')
+                count += 1
+                data = response.json()
+                if not data:
+                    continue
+                game = data[0]
+
+                item["last_updated"] = datetime.now(timezone.utc).isoformat()
+
+                item_timestamp_raw = game.get("first_release_date")
+                item_release_date = ""
+                if item_timestamp_raw is not None:
+                    item_original_release_date = float(item_timestamp_raw)
+                    item_release_date = datetime.fromtimestamp(item_original_release_date, timezone.utc).date().isoformat()
+                item["release_date"] = item_release_date
+                item["title"] = game.get("name") or ""
+                item["poster_path"] = (game.get("cover") or {}).get("image_id") or ""
+                item["overview"] = game.get("summary") or ""
+                item["genres"] = game.get("genres") or []
+                item["popularity"] = game.get("hypes") or 0
+                item["vote_average"] = game.get("rating") or 0
+                item["vote_count"] = game.get("rating_count") or 0
+
+                update_one_item_in_db(item)
+        return jsonify({"success": True, "message": "game_updater run successfully"}), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": f"{e}"}), 500
+        
+        
+
+
 @app.route('/api/checker/game', methods=['POST'])
 def get_new_games():
     try: 
@@ -1953,3 +2020,210 @@ def seb_check():
     
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
+
+
+
+
+# def game_checker_old():
+    
+#     auth_header = request.headers.get("authorization", "")
+#     if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+#         return jsonify({'error': 'Unauthorized'}), 401
+    
+#     watchlist = get_db_data_v2()
+    
+#     limit = 18
+#     items_before_sleeping = 3
+#     sleep_for = 2
+    
+#     count = 0
+
+#     for item in watchlist:
+        
+#         if count == limit:
+#             break
+#         try:
+#             if item.get("media_type") == "game" and (not item.get("last_checked") or datetime.fromisoformat(item.get("last_checked")).date() != datetime.now(timezone.utc).date()):
+
+#                 # checking if we need to wait a bit before the next req
+#                 if count and count % items_before_sleeping == 0:
+#                     time.sleep(sleep_for)
+
+
+#                 fields = (
+#                     "name,cover.image_id,first_release_date,game_type,game_status,genres.name,hypes,summary,rating,rating_count,"
+#                     "involved_companies.company.name,involved_companies.developer,involved_companies.publisher,"
+#                     "platforms.abbreviation,"
+#                     "release_dates.status.name,release_dates.date,"
+#                     "dlcs.name,dlcs.first_release_date,dlcs.game_type.type,dlcs.cover.image_id,"
+#                     "expanded_games.name,expanded_games.first_release_date,expanded_games.game_type.type,expanded_games.cover.image_id,"
+#                     "expansions.name,expansions.first_release_date,expansions.game_type.type,expansions.cover.image_id,"
+#                     "ports.name,ports.first_release_date,ports.game_type.type,ports.cover.image_id,"
+#                     "remakes.name,remakes.first_release_date,remakes.game_type.type,remakes.cover.image_id,"
+#                     "remasters.name,remasters.first_release_date,remasters.game_type.type,remasters.cover.image_id,"
+#                     "standalone_expansions.name,standalone_expansions.first_release_date,standalone_expansions.game_type.type,standalone_expansions.cover.image_id"
+#                 )
+#                 response = requests.post(f"https://api.igdb.com/v4/games" ,headers=igdb_headers, data=f'fields {fields}; where id = {item["id"]};')
+#                 count += 1
+#                 data = response.json()
+#                 if not data:
+#                     continue
+#                 game = data[0]
+#                 item["last_checked"] = datetime.now(timezone.utc).isoformat()
+#                 #TODO update the item data with the new game data
+                
+#                 item_timestamp_raw = game.get("first_release_date")
+#                 item_release_date = ""
+#                 if item_timestamp_raw is not None:
+#                     item_original_release_date = float(item_timestamp_raw)
+#                     item_release_date = datetime.fromtimestamp(item_original_release_date, timezone.utc).date().isoformat()
+
+#                 item["title"] = game.get("name") or ""
+#                 item["poster_path"] = (game.get("cover") or {}).get("image_id") or ""
+#                 item["overview"] = game.get("summary") or ""
+#                 item["genres"] = game.get("genres") or []
+#                 item["release_date"] = item_release_date
+#                 item["popularity"] = game.get("hypes") or 0
+#                 item["vote_average"] = game.get("rating") or 0
+#                 item["vote_count"] = game.get("rating_count") or 0
+                
+
+#                 # chaking 
+
+
+#                 # **checking main game**
+
+#                 #checking for shod droop
+#                 if not item.get("released") and not item.get("notification_soon"):
+#                     if game.get("first_release_date") and datetime.fromtimestamp(game.get("first_release_date"), timezone.utc).date() <= datetime.now(timezone.utc).date():
+#                         body = {
+#                                 "id": game.get("id"),
+#                                 "media_type": "game",
+#                                 "title": game.get("name", ""), 
+#                                 "overview": game.get("summary", ""),
+#                                 "poster_path": game.get("cover", {}).get("image_id"),
+#                                 "genres": game.get("genres", []),
+#                                 "involved_companies": game.get("involved_companies", []),
+#                                 "platforms": game.get("platforms", []),
+#                                 'release_date': game.get("first_release_date")
+#                             }
+#                         item["released"] = True
+#                         send_game_to_qstush(0, body)
+#                         update_one_item_in_db(item)
+#                         continue
+
+#                     #checking for tomorrow dates
+#                     release_dates = game.get("release_dates") or []
+
+#                     upcoming_main_game_dates = []
+#                     for date in release_dates:
+#                         if date.get("date") and datetime.fromtimestamp(date.get("date"), timezone.utc).date() == datetime.now(timezone.utc).date() + timedelta(days=1):
+#                             upcoming_main_game_dates.append({"date": date['date'], "status": (date.get("status") or {}).get("name", "")})
+
+#                     if upcoming_main_game_dates:
+#                         body = {
+#                            "id": game.get("id"),
+#                            "media_type": "game",
+#                            "title": game.get("name", ""), 
+#                            "overview": game.get("summary", ""),
+#                            "poster_path": game.get("cover", {}).get("image_id"),
+#                            "genres": game.get("genres", []),
+#                            "involved_companies": game.get("involved_companies", []),
+#                            "platforms": game.get("platforms", []),
+#                            'release_dates': upcoming_main_game_dates
+#                         }
+#                         time_in_sec = max(0, int(upcoming_main_game_dates[0]["date"] - datetime.now(timezone.utc).timestamp()))
+#                         item["notification_soon"] = True
+#                         send_game_to_qstush(time_in_sec, body)
+#                         update_one_item_in_db(item)
+#                         continue
+                    
+                    
+#                 # **side content*
+#                 all_content = []
+#                 content_fields = [
+#                     "dlcs", 
+#                     "expanded_games", 
+#                     "expansions", 
+#                     "remakes", 
+#                     "remasters", 
+#                     "standalone_expansions",
+#                     "ports"
+#                 ]
+#                 for field in content_fields:
+#                     items = game.get(field)
+#                     if items:
+#                         all_content.extend(items)
+
+
+
+#                 # getting shadow drop
+#                 missed_content = []
+#                 raw_date = item.get("notifications_enabled_at")
+#                 notifications_enabled_at = datetime.fromisoformat(raw_date) if raw_date else datetime.now(timezone.utc)
+#                 if notifications_enabled_at.tzinfo is None:
+#                     notifications_enabled_at = notifications_enabled_at.replace(tzinfo=timezone.utc)
+#                 for dlc in all_content:
+#                     dlc_id = dlc.get("id")
+#                     try:
+#                         dlc_release = datetime.fromtimestamp(dlc.get("first_release_date"), timezone.utc)
+#                     except TypeError:
+#                         dlc_release = False
+#                     if dlc_release and  dlc_release >= notifications_enabled_at and not dlc_release > datetime.now(timezone.utc):
+#                         if dlc_id and dlc_id not in item.get("notified_content_ids", []):
+#                             missed_content.append(dlc)
+
+#                 if missed_content:
+#                     body = {
+#                         "id": game.get("id"),
+#                         "media_type": "game",
+#                         "title": game.get("name", ""),
+#                         "overview": game.get("summary", ""),
+#                         "poster_path": (game.get("cover") or {}).get("image_id"),
+#                         "genres": game.get("genres", []),
+#                         "involved_companies": game.get("involved_companies", []),
+#                         "platforms": game.get("platforms", []),
+#                         "content": missed_content
+#                     }
+#                     notified_ids = item.setdefault("notified_content_ids", [])
+#                     notified_ids.extend([dlc["id"] for dlc in missed_content if dlc.get("id")])
+#                     send_game_to_qstush(0, body)
+#                     update_one_item_in_db(item)
+#                     continue
+                
+#                 # side content tomorrow
+#                 upcoming_side_dates = []
+#                 for dlc in all_content:
+#                     dlc_id = dlc.get("id")
+#                     try:
+#                         dlc_release = datetime.fromtimestamp(dlc.get("first_release_date"), timezone.utc)
+#                     except TypeError:
+#                         dlc_release = False
+#                     if dlc_release and dlc_release.date() == datetime.now(timezone.utc).date() + timedelta(days=1):
+#                         if dlc_id and dlc_id not in item.get("notified_content_ids", []):
+#                             upcoming_side_dates.append(dlc)
+
+#                 if upcoming_side_dates:
+#                     body = {
+#                         "id": game.get("id"),
+#                         "media_type": "game",
+#                         "title": game.get("name", ""),
+#                         "overview": game.get("summary", ""),
+#                         "poster_path": (game.get("cover") or {}).get("image_id"),
+#                         "genres": game.get("genres", []),
+#                         "involved_companies": game.get("involved_companies", []),
+#                         "platforms": game.get("platforms", []),
+#                         "content": upcoming_side_dates
+#                     }
+#                     notified_ids = item.setdefault("notified_content_ids", [])
+#                     notified_ids.extend([dlc["id"] for dlc in upcoming_side_dates if dlc.get("id")])
+#                     if upcoming_side_dates[0].get("first_release_date"):
+#                         time_in_sec = max(0, int(upcoming_side_dates[0]["first_release_date"] - datetime.now(timezone.utc).timestamp()))
+#                     else:
+#                         time_in_sec = 0
+#                     send_game_to_qstush(time_in_sec, body)
+                    
+#                 update_one_item_in_db(item)
+#         except Exception as e:
+#             continue
+#     return jsonify({"success": "true", "message": "check_game checked successfully"}), 200
