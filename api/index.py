@@ -1915,145 +1915,159 @@ def make_recommendations():
         }
 
         sorted_db_data = sorted(db_data, key=lambda item: item.get("added_date") or "", reverse=True)
-
-        sorce_tv = [item for item in sorted_db_data if item.get("media_type") == "tv"][:15]
-        tracked_show_ids = [item.get("id") for item in sorted_db_data if item.get("media_type") == "tv"]
-        tv_all_recommendations = []
-        tv_all_recommendations_count = {}
-
-        for show in sorce_tv:
-            response = requests.get(f"https://api.themoviedb.org/3/tv/{show.get("id")}/recommendations?api_key={TMDB_API_KEY}").json()
-            data = response.get("results", [])
-            for recommendation in data:
-                recommendation_id = recommendation.get("id")
-                if recommendation in tracked_show_ids:
-                    continue
-                if not tv_all_recommendations_count.get(recommendation_id):
-                    tv_all_recommendations_count[recommendation_id] = 1
-                    tv_all_recommendations.append(recommendation)
-                else:
-                    tv_all_recommendations_count[recommendation_id] += 1
-
-        top_20_recommendation_ids = sorted(
-            tv_all_recommendations_count, 
-            key=tv_all_recommendations_count.get, 
-            reverse=True
-        )[:20]
-        tv_recommendations = [item for item in tv_all_recommendations if item.get("id") in top_20_recommendation_ids]
-        tv_recommendations.sort(key=lambda item: tv_all_recommendations_count.get(item.get("id"), 0), reverse=True)
-
-
-        sorce_movie = [item for item in sorted_db_data if item.get("media_type") == "movie"][:15]
-        tracked_movies_ids = [item.get("id") for item in sorted_db_data if item.get("media_type") == "movie"]
-        movie_all_recommendations = []
-        movie_all_recommendations_count = {}
-        for movie in sorce_movie:
-            response = requests.get(f"https://api.themoviedb.org/3/movie/{movie.get("id")}/recommendations?api_key={TMDB_API_KEY}").json()
-            data = response.get("results", [])
-            for recommendation in data:
-                recommendation_id = recommendation.get("id")
-                if recommendation in tracked_movies_ids:
-                    continue
-
-                if not movie_all_recommendations_count.get(recommendation_id):
-                    movie_all_recommendations_count[recommendation_id] = 1
-                    movie_all_recommendations.append(recommendation)
-                else:
-                    movie_all_recommendations_count[recommendation_id] += 1
-        top_20_recommendation_ids = sorted(
-            movie_all_recommendations_count, 
-            key=movie_all_recommendations_count.get, 
-            reverse=True
-        )[:20]
-        movie_recommendations = [item for item in movie_all_recommendations if item.get("id") in top_20_recommendation_ids]
-        movie_recommendations.sort(key=lambda item: movie_all_recommendations_count.get(item.get("id"), 0), reverse=True)
-
-
-        sorce_game = [item for item in sorted_db_data if item.get("media_type") == "game"][:15]
-        tracked_games_ids = [item.get("id") for item in sorted_db_data if item.get("media_type") == "game"]
-        tracked_game_ids_string = ", ".join(str(game.get("id")) for game in sorce_game)
-        fields = "name, similar_games.id, similar_games.name, similar_games.cover.image_id, similar_games.rating,  similar_games.genres.name, similar_games.first_release_date,  similar_games.hypes"
-        filters = f"id = ({tracked_game_ids_string})"
-        response = requests.post("https://api.igdb.com/v4/games", headers=igdb_headers, data=f"fields {fields}; where {filters}; limit 50;").json()
-        game_recommendations_raw = [item.get('similar_games') for item in response]
-        game_all_recommendations = []
-        game_all_recommendations_count = {}
-
-        for recommendations in game_recommendations_raw:
-            for recommendation in recommendations:
-                recommendation_id = recommendation.get("id")
-                if recommendation in tracked_games_ids:
-                    continue
-                
-                if not game_all_recommendations_count.get(recommendation_id):
-                    game_all_recommendations_count[recommendation_id] = 1
-                    game_all_recommendations.append(recommendation)
-                else: 
-                    game_all_recommendations_count[recommendation_id] += 1
-
-        top_20_recommendation_ids = sorted(
-            game_all_recommendations_count, 
-            key=game_all_recommendations_count.get, 
-            reverse=True
-        )[:20]
-        game_recommendations = [item for item in game_all_recommendations if item.get("id") in top_20_recommendation_ids]
-        game_recommendations.sort(key=lambda item: game_all_recommendations_count.get(item.get("id"), 0), reverse=True)
-
-
+        
         tv_recommendations_finel = []
-        for show in tv_recommendations: 
-            tv_recommendations_finel.append({
-                "id": show.get("id"),
-                "title": show.get("name"),
-                "poster_path": show.get("poster_path"),
-                "genres": [
-                    {
-                        "id": genre_id,
-                        "name": tv_genres_by_id.get(genre_id)
-                    }
-                    for genre_id in show.get("genre_ids", [])
-                    if genre_id in tv_genres_by_id
-                ],
-                'release_date': show.get("first_air_date", ""),
-                'vote_count': show.get('vote_count', 0),
-                'popularity': show.get('popularity', 0),
-                'recommendation_score': tv_all_recommendations_count.get(show.get("id"), 0),
-                'media_type': "tv"
-            })
-        movie_recommendations_finel = []
-        for movie in movie_recommendations:
-            movie_recommendations_finel.append({
-                    "id": movie.get("id"),
-                    "title": movie.get("title"),
-                    "poster_path": movie.get("poster_path"),
+        def make_tv_recommendations():
+            sorce_tv = [item for item in sorted_db_data if item.get("media_type") == "tv"][:15]
+            tracked_show_ids = [item.get("id") for item in sorted_db_data if item.get("media_type") == "tv"]
+            tv_all_recommendations = []
+            tv_all_recommendations_count = {}
+    
+            for show in sorce_tv:
+                response = requests.get(f"https://api.themoviedb.org/3/tv/{show.get("id")}/recommendations?api_key={TMDB_API_KEY}").json()
+                data = response.get("results", [])
+                for recommendation in data:
+                    recommendation_id = recommendation.get("id")
+                    if recommendation in tracked_show_ids:
+                        continue
+                    if not tv_all_recommendations_count.get(recommendation_id):
+                        tv_all_recommendations_count[recommendation_id] = 1
+                        tv_all_recommendations.append(recommendation)
+                    else:
+                        tv_all_recommendations_count[recommendation_id] += 1
+    
+            top_20_recommendation_ids = sorted(
+                tv_all_recommendations_count, 
+                key=tv_all_recommendations_count.get, 
+                reverse=True
+            )[:20]
+            tv_recommendations = [item for item in tv_all_recommendations if item.get("id") in top_20_recommendation_ids]
+            tv_recommendations.sort(key=lambda item: tv_all_recommendations_count.get(item.get("id"), 0), reverse=True)
+            for show in tv_recommendations: 
+                tv_recommendations_finel.append({
+                    "id": show.get("id"),
+                    "title": show.get("name"),
+                    "poster_path": show.get("poster_path"),
                     "genres": [
                         {
                             "id": genre_id,
-                            "name": movie_genres_by_id.get(genre_id)
+                            "name": tv_genres_by_id.get(genre_id)
                         }
-                        for genre_id in movie.get("genre_ids", [])
-                        if genre_id in movie_genres_by_id
+                        for genre_id in show.get("genre_ids", [])
+                        if genre_id in tv_genres_by_id
                     ],
-                    'release_date': movie.get("release_date", ""),
-                    'vote_count': movie.get('vote_count', 0),
-                    'popularity': movie.get('popularity', 0),
-                    'recommendation_score': movie_all_recommendations_count.get(movie.get("id"), 0) + 2,
-                    'media_type': "movie"
+                    'release_date': show.get("first_air_date", ""),
+                    'vote_count': show.get('vote_count', 0),
+                    'popularity': show.get('popularity', 0),
+                    'recommendation_score': tv_all_recommendations_count.get(show.get("id"), 0),
+                    'media_type': "tv"
                 })
+
+        movie_recommendations_finel = []
+        def make_movie_recommendations():
+            sorce_movie = [item for item in sorted_db_data if item.get("media_type") == "movie"][:15]
+            tracked_movies_ids = [item.get("id") for item in sorted_db_data if item.get("media_type") == "movie"]
+            movie_all_recommendations = []
+            movie_all_recommendations_count = {}
+            for movie in sorce_movie:
+                response = requests.get(f"https://api.themoviedb.org/3/movie/{movie.get("id")}/recommendations?api_key={TMDB_API_KEY}").json()
+                data = response.get("results", [])
+                for recommendation in data:
+                    recommendation_id = recommendation.get("id")
+                    if recommendation in tracked_movies_ids:
+                        continue
+
+                    if not movie_all_recommendations_count.get(recommendation_id):
+                        movie_all_recommendations_count[recommendation_id] = 1
+                        movie_all_recommendations.append(recommendation)
+                    else:
+                        movie_all_recommendations_count[recommendation_id] += 1
+            top_20_recommendation_ids = sorted(
+                movie_all_recommendations_count, 
+                key=movie_all_recommendations_count.get, 
+                reverse=True
+            )[:20]
+            movie_recommendations = [item for item in movie_all_recommendations if item.get("id") in top_20_recommendation_ids]
+            movie_recommendations.sort(key=lambda item: movie_all_recommendations_count.get(item.get("id"), 0), reverse=True)
+            for movie in movie_recommendations:
+                movie_recommendations_finel.append({
+                        "id": movie.get("id"),
+                        "title": movie.get("title"),
+                        "poster_path": movie.get("poster_path"),
+                        "genres": [
+                            {
+                                "id": genre_id,
+                                "name": movie_genres_by_id.get(genre_id)
+                            }
+                            for genre_id in movie.get("genre_ids", [])
+                            if genre_id in movie_genres_by_id
+                        ],
+                        'release_date': movie.get("release_date", ""),
+                        'vote_count': movie.get('vote_count', 0),
+                        'popularity': movie.get('popularity', 0),
+                        'recommendation_score': movie_all_recommendations_count.get(movie.get("id"), 0) + 2,
+                        'media_type': "movie"
+                    })
+
+
         game_recommendations_finel = []
-        for game in game_recommendations:
-            release_date = datetime.fromtimestamp(game.get("first_release_date", 0) or 0, timezone.utc)
-            game_recommendations_finel.append({
-                "id": game.get("id"),
-                "title": game.get("name"),
-                "poster_path": (game.get("cover") or {}).get('image_id', ""),
-                "genres": game.get('genres', []),
-                'release_date': release_date.date().isoformat(),
-                'vote_count': game.get("rating"),
-                'popularity': game.get("hypes", 0) or 0,
-                'recommendation_score': game_all_recommendations_count.get(game.get("id"), 0) - 1,
-                'media_type': "game"
-            })
+        def make_game_recommendations():
+            sorce_game = [item for item in sorted_db_data if item.get("media_type") == "game"][:15]
+            tracked_games_ids = [item.get("id") for item in sorted_db_data if item.get("media_type") == "game"]
+            tracked_game_ids_string = ", ".join(str(game.get("id")) for game in sorce_game)
+            fields = "name, similar_games.id, similar_games.name, similar_games.cover.image_id, similar_games.rating,  similar_games.genres.name, similar_games.first_release_date,  similar_games.hypes"
+            filters = f"id = ({tracked_game_ids_string})"
+            response = requests.post("https://api.igdb.com/v4/games", headers=igdb_headers, data=f"fields {fields}; where {filters}; limit 50;").json()
+            game_recommendations_raw = [item.get('similar_games') for item in response]
+            game_all_recommendations = []
+            game_all_recommendations_count = {}
+
+            for recommendations in game_recommendations_raw:
+                for recommendation in recommendations:
+                    recommendation_id = recommendation.get("id")
+                    if recommendation in tracked_games_ids:
+                        continue
+                    
+                    if not game_all_recommendations_count.get(recommendation_id):
+                        game_all_recommendations_count[recommendation_id] = 1
+                        game_all_recommendations.append(recommendation)
+                    else: 
+                        game_all_recommendations_count[recommendation_id] += 1
+
+            top_20_recommendation_ids = sorted(
+                game_all_recommendations_count, 
+                key=game_all_recommendations_count.get, 
+                reverse=True
+            )[:20]
+            game_recommendations = [item for item in game_all_recommendations if item.get("id") in top_20_recommendation_ids]
+            game_recommendations.sort(key=lambda item: game_all_recommendations_count.get(item.get("id"), 0), reverse=True)
+
+            for game in game_recommendations:
+                release_date = datetime.fromtimestamp(game.get("first_release_date", 0) or 0, timezone.utc)
+                game_recommendations_finel.append({
+                    "id": game.get("id"),
+                    "title": game.get("name"),
+                    "poster_path": (game.get("cover") or {}).get('image_id', ""),
+                    "genres": game.get('genres', []),
+                    'release_date': release_date.date().isoformat(),
+                    'vote_count': game.get("rating"),
+                    'popularity': game.get("hypes", 0) or 0,
+                    'recommendation_score': game_all_recommendations_count.get(game.get("id"), 0) - 1,
+                    'media_type': "game"
+                })
+
+        t1 = threading.Thread(target=make_tv_recommendations)
+        t2 = threading.Thread(target=make_movie_recommendations)
+        t3 = threading.Thread(target=make_game_recommendations)
+        
+        t1.start()
+        t2.start()
+        t3.start()
+
+        t1.join()
+        t2.join()
+        t3.join()
+
 
         recommendations_finel: list = tv_recommendations_finel + movie_recommendations_finel + game_recommendations_finel
         recommendations_finel = sorted(recommendations_finel, key=lambda item : item.get("recommendation_score"), reverse=True)
