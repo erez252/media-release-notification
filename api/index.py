@@ -545,31 +545,82 @@ def search_tmdb():
     if not (movie_name and isinstance(movie_name, str)):
         return jsonify({"error": "Bad Request", "message": "One or more missing required parameters"}), 400
     
+    
     try:
-        search_url = "https://api.themoviedb.org/3/search/multi"
-        params = {
-            "query": movie_name,
-            "api_key": TMDB_API_KEY,
-            "include_adult": "false",
-            "language": "en-US",
-            "page": "1",
-            
-        }
-        search_response = requests.get(search_url, params=params)
-        search_results = search_response.json()["results"]
-        
-        
         movie_results = []
         tv_results = []
-        
-        for item in search_results:
-            if item.get("media_type") == "tv":
-                tv_results.append(item)
-            elif item.get("media_type") == "movie":
-                movie_results.append(item)
-        
+        def get_tmdb_search():
+            search_url = "https://api.themoviedb.org/3/search/multi"
+            params = {
+                "query": movie_name,
+                "api_key": TMDB_API_KEY,
+                "include_adult": "false",
+                "language": "en-US",
+                "page": "1",
 
-        game_results = get_game_results(movie_name)
+            }
+            search_response = requests.get(search_url, params=params)
+            search_results = search_response.json()["results"]
+
+
+
+
+            for item in search_results:
+                if item.get("media_type") == "tv":
+                    tv_results.append(item)
+                elif item.get("media_type") == "movie":
+                    movie_results.append(item)
+        
+        
+        game_results = []
+        def get_game_results():
+    
+
+            fields = "name,cover.image_id,first_release_date,game_type,game_status.status,genres.name,hypes,summary,first_release_date,rating,rating_count"
+            filters = "themes != (42) & game_type = (0, 8)"
+
+            response = requests.post(f"https://api.igdb.com/v4/games" ,headers=igdb_headers, data=f'fields {fields}; where {filters}; search "{movie_name}";')
+            if response.status_code != 200:
+                return
+
+            games = response.json()
+            for game in games:
+
+                timestamp_raw = game.get("first_release_date")
+                release_date = ""
+                if timestamp_raw is not None:
+                    original_release_date = float(timestamp_raw)
+                    release_date = datetime.fromtimestamp(original_release_date, timezone.utc).date().isoformat()
+
+                cover = game.get("cover")
+                poster_path = cover.get("image_id", "") if cover else ""
+
+                game_results.append(
+                    {
+                        "adult": False,
+                        'id': game.get("id", ""),
+                        "title": game.get("name", ""),
+                        "overview": game.get("summary", ""),
+                        "poster_path": poster_path,
+                        "media_type": "game",
+                        "genres": game.get("genres", []),
+                        'popularity': game.get("hype", 0),
+                        "release_date": release_date,
+                        "softcore": False,
+                        "video": False,
+                        "vote_average": game.get("rating", 0),
+                        "vote_count": game.get("rating_count", 0),
+                    }
+                )    
+        
+        t1 = threading.Thread(target=get_tmdb_search)
+        t2 = threading.Thread(target=get_game_results)
+        
+        t1.start()
+        t2.start()
+        
+        t1.join()
+        t2.join()
         
         if not (movie_results or tv_results or game_results):
             return jsonify({}), 200
