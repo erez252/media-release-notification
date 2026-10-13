@@ -977,7 +977,9 @@ def check_tv_v2():
                         if web_channel:
                             if web_channel == "Prime Video":
                                 show_time_stemp = show_time_stemp.replace(hour=0)
-                            elif web_channel == "Disney+" or web_channel == "Apple TV":
+                            elif web_channel == "Apple TV":
+                                show_time_stemp = show_time_stemp.replace(hour=1)
+                            elif web_channel == "Disney+":
                                 show_time_stemp = (show_time_stemp + timedelta(days=1)).replace(hour=1)
                             elif web_channel == "Hulu":
                                 show_time_stemp = show_time_stemp.replace(hour=4)
@@ -1766,7 +1768,9 @@ def make_calendar():
                         if web_channel:
                             if web_channel == "Prime Video":
                                 airstamp = airstamp.replace(hour=0)
-                            elif web_channel == "Disney+" or web_channel == "Apple TV":
+                            elif web_channel == "Apple TV":
+                                airstamp = airstamp.replace(hour=1)
+                            elif web_channel == "Disney+":
                                 airstamp = (airstamp + timedelta(days=1)).replace(hour=1)
                             elif web_channel == "Hulu":
                                 airstamp = airstamp.replace(hour=4)
