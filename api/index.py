@@ -1760,6 +1760,19 @@ def make_calendar():
                     airstamp = datetime.fromisoformat(show.get("airstamp") or f"{show.get('airdate')}T12:00:00+00:00")
                     if not show.get("airtime"):
                         airstamp = airstamp.replace(hour=7)
+                        show_path = show.get("show") or show.get("_embedded", {}).get("show", {})
+                        web_channel_obj = show_path.get("webChannel") or show.get("webChannel") or {}
+                        web_channel = web_channel_obj.get("name") if isinstance(web_channel_obj, dict) else None
+                        if web_channel:
+                            if web_channel == "Prime Video":
+                                airstamp = airstamp.replace(hour=0)
+                            elif web_channel == "Disney+" or web_channel == "Apple TV":
+                                airstamp = (airstamp + timedelta(days=1)).replace(hour=1)
+                            elif web_channel == "Hulu":
+                                airstamp = airstamp.replace(hour=4)
+                            elif web_channel == "Peacock":
+                                airstamp = airstamp.replace(hour=9)
+                        
                     tv_calendar.append({
                         "id": db_item.get("id"),
                         "tvmaze_id": tvmaze_id,
