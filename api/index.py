@@ -951,14 +951,14 @@ def check_tv_v2():
         id_list = [item.get("tvmaze_id") for item in db_data if (item.get("media_type") == "tv" and item.get("tvmaze_id", ""))]
         date_iso = datetime.now(timezone.utc).date().isoformat()
 
-        #  = requests.get(f"https://api.tvmaze.com/schedule/?date={date_iso}")
-        # response_web = requests.get(f"https://api.tvmaze.com/schedule/web?date={date_iso}&country=")
-        response = requests.get(f"https://api.tvmaze.com/schedule/full")
+        response = requests.get(f"https://api.tvmaze.com/schedule/?date={date_iso}")
+        response_web = requests.get(f"https://api.tvmaze.com/schedule/web?date={date_iso}&country=")
         data = response.json() or []
+        data_web = response_web.json() or []
         new_ep = []
-        if data:
-            for ep in data:
-                if ((((ep.get("show") or {}).get("id") or "") or (((ep.get("_embedded") or {}).get("show") or {}).get("id") or "")) in id_list) and (ep.get("airstamp") and datetime.now(timezone.utc).date() == datetime.fromisoformat(ep.get("airstamp") or "1970-01-01T12:00:00+00:00").date()):
+        if data or data_web:
+            for ep in data + data_web:
+                if ((((ep.get("show") or {}).get("id") or "") or (((ep.get("_embedded") or {}).get("show") or {}).get("id") or "")) in id_list):
                     new_ep.append(ep)
             if new_ep:
                 new_ep_formated = []
@@ -969,7 +969,22 @@ def check_tv_v2():
                     
                     show_time_stemp = datetime.fromisoformat(ep.get("airstamp") or f"{ep.get('airdate')}T12:00:00+00:00")
                     if not ep.get("airtime"):
+                        # Fallback default (Netflix, HBO Max, Paramount+ -> 07:00 UTC)
                         show_time_stemp = show_time_stemp.replace(hour=7)
+                        show_path = ep.get("show") or ep.get("_embedded", {}).get("show", {})
+                        web_channel_obj = show_path.get("webChannel") or ep.get("webChannel") or {}
+                        web_channel = web_channel_obj.get("name") if isinstance(web_channel_obj, dict) else None
+                        if web_channel:
+                            if web_channel == "Prime Video":
+                                show_time_stemp = show_time_stemp.replace(hour=0)
+                            elif web_channel == "Disney+" or web_channel == "Apple TV":
+                                show_time_stemp = show_time_stemp.replace(hour=1)
+                            elif web_channel == "Hulu":
+                                show_time_stemp = show_time_stemp.replace(hour=4)
+                            elif web_channel == "Peacock":
+                                show_time_stemp = show_time_stemp.replace(hour=9)
+
+                                
                     
                     new_ep_formated.append({
                         "id": show_id[0],
