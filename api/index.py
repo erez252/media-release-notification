@@ -1942,7 +1942,7 @@ def get_ics():
         elif media_type == "movie":
             uid = f"movie-{item_id}-{rel_type}@media-release-notification.vercel.app"
             summary = f"🎬 {item['title']} ({item.get('type', 'Movie')})"
-            desc = f"Media: Movie\\nType: {item.get('type', 'N/A')}"
+            desc = f"Media: Movie\\nType: {item.get('type', 'N/A')}\\nURL: https://www.themoviedb.org/movie/{item_id}"
         
         elif media_type == "game":
             uid = f"game-{item_id}-{rel_type}@media-release-notification.vercel.app"
