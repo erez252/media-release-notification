@@ -3,7 +3,7 @@ import os
 import time
 import json
 import requests
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from datetime import date, datetime, timezone, timedelta
 import threading
@@ -1900,6 +1900,75 @@ def get_calendar():
     data = json.loads(result_str) if result_str else []
     return jsonify(data), 200
 
+
+@app.route('/api/calendar/get/ics.ics', methods=['GET'])
+def get_ics():
+    response = requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["GET", "calendar"])
+    result_str = response.json().get('result')
+    data = json.loads(result_str) if result_str else []
+    
+    data = [item for item in data if item.get("airstamp") and datetime.fromisoformat(item.get("airstamp")) >= (datetime.now(timezone.utc) - timedelta(days=3))]
+    
+    ics_lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//MediaReleaseTracker//EN",
+        "X-WR-CALNAME:Media Releases"
+    ]
+    
+    for item in data:
+        start_dt = datetime.fromisoformat(item["airstamp"])
+        runtime_mins = item.get("runtime") or 60
+        end_dt = start_dt + timedelta(minutes=runtime_mins)
+        
+        start_utc = start_dt.astimezone(timezone.utc)
+        end_utc = end_dt.astimezone(timezone.utc)
+        
+        start_str = start_utc.strftime("%Y%m%dT%H%M%SZ")
+        end_str = end_utc.strftime("%Y%m%dT%H%M%SZ")
+        
+        
+        media_type = item.get("media_type")
+        item_id = item["id"]
+        rel_type = str(item.get('type', 'release')).lower().replace(' ', '_')
+        
+        if media_type == "tv":
+            uid = f"tv-{item_id}-{item['season']}x{item['number']}@media-release-notification.vercel.app"
+            ep_name = item.get("name")
+            name_str = f" - {ep_name}" if ep_name else ""
+            summary = f"📺 {item['title']} {item['season']}x{item['number']:02d}{name_str}"
+            desc = f"Type: {item.get('type', 'Episode')}\\nURL: {item.get('url', '')}"
+            
+        elif media_type == "movie":
+            uid = f"movie-{item_id}-{rel_type}@media-release-notification.vercel.app"
+            summary = f"🎬 {item['title']} ({item.get('type', 'Movie')})"
+            desc = f"Media: Movie\\nType: {item.get('type', 'N/A')}"
+        
+        elif media_type == "game":
+            uid = f"game-{item_id}-{rel_type}@media-release-notification.vercel.app"
+            game_name = item.get("name") or item["title"]
+            summary = f"🎮 {game_name} ({item.get('type', 'Game')})"
+            platforms = ", ".join(item.get("platforms", []))
+            desc = f"Media: Game\\nType: {item.get('type', 'N/A')}\\nPlatforms: {platforms}"
+            
+        ics_lines.extend([
+            "BEGIN:VEVENT",
+            f"UID:{uid}",
+            f"DTSTART:{start_str}",
+            f"DTEND:{end_str}",
+            f"SUMMARY:{summary}",
+            f"DESCRIPTION:{desc}",
+            "END:VEVENT"
+        ])
+        
+    ics_lines.append("END:VCALENDAR")
+    
+    return Response(
+        "\r\n".join(ics_lines), 
+        mimetype="text/calendar",
+        headers={"Content-Disposition": "inline; filename=calendar.ics"}
+    )
+
 @app.route('/api/recommendations/make', methods=['POST'])
 def make_recommendations():
     try:
@@ -2412,8 +2481,7 @@ def seb_check():
 #                     continue
 #                 game = data[0]
 #                 item["last_checked"] = datetime.now(timezone.utc).isoformat()
-#                 #TODO update the item data with the new game data
-                
+
 #                 item_timestamp_raw = game.get("first_release_date")
 #                 item_release_date = ""
 #                 if item_timestamp_raw is not None:
