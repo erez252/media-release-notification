@@ -1498,7 +1498,7 @@ def get_tv_info():
         if not tv_id:
             return jsonify({"error": "misiing id"})
 
-        response = requests.get(f"https://api.themoviedb.org/3/tv/{tv_id}?api_key={TMDB_API_KEY}&append_to_response=keywords,release_dates,videos,credits,content_ratings")
+        response = requests.get(f"https://api.themoviedb.org/3/tv/{tv_id}?api_key={TMDB_API_KEY}&append_to_response=keywords,release_dates,videos,credits,content_ratings,external_ids")
         data = response.json()
         show = {
             "title": data.get("name", ""),
@@ -1592,8 +1592,8 @@ def get_tv_info():
                 show["watch_providers"] = providers_data
 
 
-        response = requests.get(f"https://api.themoviedb.org/3/tv/{data.get('id')}/external_ids?api_key={TMDB_API_KEY}")
-        external_ids = response.json()
+        # response = requests.get(f"https://api.themoviedb.org/3/tv/{data.get('id')}/external_ids?api_key={TMDB_API_KEY}")
+        external_ids = data.get('external_ids') or {}
         if external_ids.get("imdb_id"):
             show["imdb_id"] = external_ids.get("imdb_id")
         if external_ids.get("tvdb_id"):
@@ -1619,8 +1619,27 @@ def get_tv_info():
             print(show.get("tvmaze_id"))
 
             response = requests.get(f"https://api.tvmaze.com/shows/{show.get("tvmaze_id")}/episodes?specials=1")
-            if response.json():
-                show["episodes"] = response.json()
+            episodes = response.json()
+            if episodes:
+                show_tvmaze_data = requests.get(f"https://api.tvmaze.com/shows/{show.get("tvmaze_id")}").json()
+                for episode in episodes:
+                    airstamp = datetime.fromisoformat(episode.get("airstamp") or f"{episode.get('airdate')}T12:00:00+00:00")
+                    if not episode.get("airtime"):
+                        airstamp = airstamp.replace(hour=7)
+                        web_channel = (show_tvmaze_data.get("webChannel") or {}).get("name")
+                        if web_channel:
+                            if web_channel == "Prime Video":
+                                airstamp = airstamp.replace(hour=0)
+                            elif web_channel == "Apple TV":
+                                airstamp = airstamp.replace(hour=1)
+                            elif web_channel == "Disney+":
+                                airstamp = (airstamp + timedelta(days=1)).replace(hour=1)
+                            elif web_channel == "Hulu":
+                                airstamp = airstamp.replace(hour=4)
+                            elif web_channel == "Peacock":
+                                airstamp = airstamp.replace(hour=9)
+                    episode["airstamp"] = airstamp
+                show["episodes"] = episodes
 
 
         age_rating = ""
@@ -1899,7 +1918,6 @@ def get_calendar():
     result_str = response.json().get('result')
     data = json.loads(result_str) if result_str else []
     return jsonify(data), 200
-
 
 @app.route('/api/calendar/get/ics.ics', methods=['GET'])
 def get_ics():
