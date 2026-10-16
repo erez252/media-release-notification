@@ -7,6 +7,7 @@ from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from datetime import date, datetime, timezone, timedelta
 import threading
+from iso3166 import countries
 app = Flask(__name__)
 CORS(app)  # Handles CORS preflight headers automatically
 import urllib.parse
@@ -1659,6 +1660,154 @@ def get_tv_info():
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
 
+@app.route('/api/info/tv', methods=['POST'])
+def get_game_info():
+    try:
+        body = request.get_json() or {}
+        authorized = is_authorized(body)
+        if not authorized:
+            return jsonify({'error': 'Unauthorized'}), 401
+        game_id = body.get("gameid") or ""
+        if not game_id:
+            return jsonify({"error": "misiing id"})
+
+        fields = "name, url, first_release_date, cover.image_id, artworks.image_id, artworks.image_type, rating, game_status.status, rating, rating_count, genres.name, summary, storyline, involved_companies.company.name, involved_companies.company.logo.image_id, involved_companies.company.url, involved_companies.company.country, involved_companies.developer, involved_companies.porting, involved_companies.publisher, involved_companies.supporting, language_supports.language.name, language_supports.language_support_type, websites.url, websites.type.type, keywords.name, age_ratings.rating_category.rating, age_ratings.organization.name, game_type.type, franchises.name, franchises.url, game_engines.name, game_engines.logo.image_id, game_modes.name, parent_game.name, parent_game.cover.image_id, platforms.abbreviation, platforms.platform_logo.image_id, player_perspectives.name, videos.*, bundles.name, bundles.cover.image_id, bundles.game_type, bundles.first_release_date, dlcs.name, dlcs.cover.image_id, dlcs.game_type, dlcs.first_release_date, expansions.name, expansions.cover.image_id, expansions.game_type, expansions.first_release_date, ports.name, ports.cover.image_id, ports.game_type, ports.first_release_date, remakes.name, remakes.cover.image_id, remakes.game_type, remakes.first_release_date, remasters.name, remasters.cover.image_id, remasters.game_type, remasters.first_release_date"
+        filters = f"id = {game_id}"
+        response = requests.post("https://api.igdb.com/v4/games", headers=igdb_headers, data=f"fields {fields}; where {filters}; limit 50;")
+        data = response.json()
+        if len(data) >= 1:
+            game_data = data[0]
+        else:
+            return jsonify({"error": "no info found"}), 404
+
+        release_date = ""
+        release_date_raw = ""
+        if game_data.get("first_release_date"):
+            release_date_raw = datetime.fromtimestamp(game_data.get("first_release_date"), timezone.utc)
+            if release_date_raw:
+                release_date = release_date_raw.date().isoformat()
+
+        backdrop_path = next((item.get('image_id') for item in (game_data.get("artworks") or []) if item.get("image_type") == 2), "") or next((item.get('image_id') for item in (game_data.get("artworks") or []) if item.get("image_type") == 3), "")
+
+        game_status = (game_data.get("game_status") or {}).get("status")
+
+        if not game_status:
+            if not release_date_raw or release_date_raw > datetime.now(timezone.utc):
+                game_status = "Upcoming"
+            else: 
+                game_status = "Released"
+
+        original_language = game_data.get("language_supports", [])
+        if original_language:
+            original_language = [(item.get("language") or {}).get('name') for item in original_language if item.get("language_support_type") == 1]
+
+        websites = game_data.get("websites", "")
+        homepage = ""
+        if websites:
+            homepage = next((item.get("url") for item in websites if (item.get('type') or {}).get('id') == 1), "")
+
+        keywords = []
+        if game_data.get("keywords", []):
+            keywords = [item.get("name") for item in game_data.get("keywords")]
+
+        age_ratings = game_data.get("age_ratings", [])
+        if age_ratings:
+            age_ratings = [{"organization": (item.get("organization") or {}).get('name', "?"), "rating": (item.get("rating_category") or {}).get('rating', "?")} for item in age_ratings]
+
+        franchises = game_data.get("franchises")
+        if franchises:
+            franchises = [{"name": item.get("name", ""), "url": item.get("url", "")} for item in franchises]
+
+        game_engines = game_data.get("game_engines", [])
+        if game_engines:
+            game_engines = [{"name": item.get("name", ""), "image_path": (item.get("logo") or {}).get('image_id')} for item in game_engines]
+
+        platforms = game_data.get("platforms", [])
+        if platforms:
+            platforms = [{"abbreviation": item.get("abbreviation", ""), "platform_logo": (item.get("platform_logo") or {}).get('image_id')} for item in platforms]
+
+        videos = game_data.get("videos")
+        if videos:
+            videos = [{"name": item.get("name", ""), "video_id": item.get("video_id") or {}} for item in videos]
+
+        involved_companies = game_data.get("involved_companies", [])
+        if involved_companies:
+            for company in involved_companies:
+                country = ""
+                try:
+                    country = countries.get((company.get("company") or {}).get("country")).alpha2
+                except Exception:
+                    pass
+                company_info = {"name": (company.get("company") or {}).get("name", ""), "logo_path": ((company.get("company") or {}).get('logo') or {}).get('image_id'), "url": (company.get("company") or {}).get("url", ""), "country": country}
+                company["company"] = company_info
+
+        stores = []
+        if websites:
+            stores = [{"name": (item.get("type") or {}).get('type', "?"), "url": item.get("url")} for item in websites if (item.get("type") or {}).get('id') == 10 or (item.get("type") or {}).get('id') == 11 or (item.get("type") or {}).get('id') == 12 or (item.get("type") or {}).get('id') == 13 or (item.get("type") or {}).get('id') == 16 or (item.get("type") or {}).get('id') == 17]
+
+        links = []
+        if websites:
+            links = [{"name": (item.get("type") or {}).get('type', "?"), "url": item.get("url")} for item in websites if (item.get("type") or {}).get('id') == 2 or (item.get("type") or {}).get('id') == 3 or (item.get("type") or {}).get('id') == 4 or (item.get("type") or {}).get('id') == 5 or (item.get("type") or {}).get('id') == 6 or (item.get("type") or {}).get('id') == 8 or (item.get("type") or {}).get('id') == 9 or (item.get("type") or {}).get('id') == 14 or (item.get("type") or {}).get('id') == 18 or (item.get("type") or {}).get('id') == 19]
+
+
+        bundles = game_data.get("bundles") or []
+        dlcs = game_data.get("dlcs") or []
+        expansions = game_data.get("expansions") or []
+        ports = game_data.get("ports") or []
+        remakes = game_data.get("remakes") or []
+        remasters = game_data.get("remasters") or []
+        for item in bundles + dlcs + expansions + ports + remakes + remasters:
+            first_release_date = item.get("first_release_date")
+            if first_release_date:
+                item["first_release_date"] = datetime.fromtimestamp(item.get("first_release_date")).date().isoformat()
+            cover = (item.get("cover") or {}).get("image_id")
+            if cover:
+                item['cover'] = cover
+
+        origin_country = ""
+        if involved_companies:
+            origin_country = [(item.get('company') or {}).get('country') for item in involved_companies if item.get('developer')]
+
+        game = {
+            "title": game_data.get("name", ""),
+            "poster_path": (game_data.get("cover") or {}).get("image_id"),
+            "backdrop_path": backdrop_path,
+            "release_date": release_date,
+            "vote_average": game_data.get("rating", 0.0),
+            "vote_count": game_data.get("rating_count", 0),
+            "status": game_status,
+            "genres": game_data.get("genres", []),
+            "overview": game_data.get("summary", ""),
+            "storyline": game_data.get("storyline", ""),
+            "involved_companies": involved_companies,
+            "origin_country": origin_country,
+            "original_language": original_language,
+            "homepage": homepage,
+            "id": game_data.get("id", ""),
+            "keywords": keywords,
+            "age_ratings": age_ratings,
+            "game_type": (game_data.get("game_type") or {}).get('type'),
+            "franchise": franchises,
+            "game_engines": game_engines,
+            "game_modes": game_data.get("game_modes", []),
+            "parent_game": game_data.get("parent_game"),
+            "platforms": platforms,
+            "player_perspectives": game_data.get("player_perspectives"),
+            "igdb_url": game_data.get("url"),
+            "videos": videos,
+            "bundles": game_data.get("bundles"),
+            "dlcs": game_data.get("dlcs"),
+            "expansions": game_data.get("expansions"),
+            "ports": game_data.get("ports"),
+            "remakes": game_data.get("remakes"),
+            "remasters": game_data.get("remasters"),
+            "stores": stores,
+            "links": links,
+        }
+        return jsonify(game), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": f"{e}"}), 500
+        
 @app.route('/api/sync/stremio', methods=['POST'])
 def stremio_sync():
     try:
