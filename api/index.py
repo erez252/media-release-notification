@@ -1660,7 +1660,7 @@ def get_tv_info():
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
 
-@app.route('/api/info/tv', methods=['POST'])
+@app.route('/api/info/game', methods=['POST'])
 def get_game_info():
     try:
         body = request.get_json() or {}
