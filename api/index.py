@@ -2076,7 +2076,7 @@ def make_recommendations():
                         if genre_id in tv_genres_by_id
                     ],
                     'release_date': show.get("first_air_date", ""),
-                    'vote_count': show.get('vote_count', 0),
+                    'vote_average': show.get('vote_average', 0),
                     'popularity': show.get('popularity', 0),
                     'recommendation_score': tv_all_recommendations_count.get(show.get("id"), 0),
                     'media_type': "tv"
@@ -2122,7 +2122,7 @@ def make_recommendations():
                             if genre_id in movie_genres_by_id
                         ],
                         'release_date': movie.get("release_date", ""),
-                        'vote_count': movie.get('vote_count', 0),
+                        'vote_average': movie.get('vote_average', 0),
                         'popularity': movie.get('popularity', 0),
                         'recommendation_score': movie_all_recommendations_count.get(movie.get("id"), 0) + 2,
                         'media_type': "movie"
@@ -2169,7 +2169,7 @@ def make_recommendations():
                     "poster_path": (game.get("cover") or {}).get('image_id', ""),
                     "genres": game.get('genres', []),
                     'release_date': release_date.date().isoformat(),
-                    'vote_count': game.get("rating"),
+                    'vote_average': game.get("rating"),
                     'popularity': game.get("hypes", 0) or 0,
                     'recommendation_score': game_all_recommendations_count.get(game.get("id"), 0) - 1,
                     'media_type': "game"
