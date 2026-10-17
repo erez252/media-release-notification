@@ -1804,6 +1804,17 @@ def get_game_info():
             "stores": stores,
             "links": links,
         }
+        
+        time_to_beat_data = requests.post(
+            "https://api.igdb.com/v4/game_time_to_beats",
+            headers=igdb_headers,
+            data=f"fields *; where game_id = {game_id};",
+        ).json()
+        
+        if time_to_beat_data:
+            time_to_beat = time_to_beat_data[0]
+            game["time_to_beat"] = {"hastily": time_to_beat.get("hastily"), "normally": time_to_beat.get("normally"), "completely": time_to_beat.get("completely")}
+        
         return jsonify(game), 200
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
