@@ -459,7 +459,223 @@ def get_data_for_add_item(media_id, media_type):
         update_one_item_in_db(movie_data)
         
         return True
-        
+     
+def get_discaver(media_type, search_type, page, genre, year, sort, exclude_reality, exclude_talk, exclude_news):
+    try:
+        movie_genres_by_id = {
+            28: "Action",
+            12: "Adventure",
+            16: "Animation",
+            35: "Comedy",
+            80: "Crime",
+            99: "Documentary",
+            18: "Drama",
+            10751: "Family",
+            14: "Fantasy",
+            36: "History",
+            27: "Horror",
+            10402: "Music",
+            9648: "Mystery",
+            10749: "Romance",
+            878: "Science Fiction",
+            10770: "TV Movie",
+            53: "Thriller",
+            10752: "War",
+            37: "Western"
+        }
+
+        tv_genres_by_id = {
+            10759: "Action & Adventure",
+            16: "Animation",
+            35: "Comedy",
+            80: "Crime",
+            99: "Documentary",
+            18: "Drama",
+            10751: "Family",
+            10762: "Kids",
+            9648: "Mystery",
+            10763: "News",
+            10764: "Reality",
+            10765: "Sci-Fi & Fantasy",
+            10766: "Soap",
+            10767: "Talk",
+            10768: "War & Politics",
+            37: "Western"
+        }
+
+        today_stemp = int(time.time())
+        today_date = datetime.now(timezone.utc).date().isoformat()
+        next_month_date = (datetime.now(timezone.utc).date() + timedelta(days=30)).isoformat()
+        last_month_date = (datetime.now(timezone.utc).date() - timedelta(days=30)).isoformat()
+        last_week_date = (datetime.now(timezone.utc).date() - timedelta(days=7)).isoformat()
+        next_3_month_date = (datetime.now(timezone.utc).date() + timedelta(days=90)).isoformat()
+        next_3_month_stemp = int((datetime.now() + timedelta(days=90)).timestamp())
+        last_3_month = (datetime.now(timezone.utc).date() - timedelta(days=90))
+        last_3_month_stemp = int(datetime.combine(last_3_month, datetime.min.time(), tzinfo=timezone.utc).timestamp())
+        next_week_date = (datetime.now(timezone.utc).date() + timedelta(days=7)).isoformat()
+
+        url = ""
+        if media_type == "movie":
+            if not sort:
+                sort = "popularity.desc"
+            if search_type == "popular":
+                url = f"https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page={page}&sort_by={sort}"
+            elif search_type == "upcoming":
+                url = f"https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page={page}&primary_release_date.gte={today_date}&primary_release_date.lte={next_month_date}&sort_by={sort}"
+            elif search_type == "anticipated":
+                url = f"https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page={page}&primary_release_date.gte={next_month_date}&sort_by=popularity.desc"
+            elif search_type == "new":
+                url = f"https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page={page}&primary_release_date.gte={last_month_date}&primary_release_date.lte={today_date}&sort_by={sort}"
+
+            if url:
+                if genre:
+                    url = f"{url}&with_genres={genre}"
+                if year:
+                    url = f"{url}&primary_release_year={year}"
+                if sort != "popularity.desc" and (search_type == "popular"):
+                    url = f"{url}&vote_count.gte=1000"
+
+                response = requests.get(f"{url}&api_key={TMDB_API_KEY}").json()
+
+                custom_results = []
+                custom_results_data = {'page': response.get('page'), 'total_pages': min(response.get('total_pages'), 500)}
+                results = response.get('results')
+                if results:
+                    for raw_movie in results:
+                        movie_genres = []
+                        if raw_movie.get("genre_ids"):
+                            for movie_genre in raw_movie.get("genre_ids"):
+                                if movie_genres_by_id.get(movie_genre):
+                                    movie_genres.append(movie_genres_by_id.get(movie_genre))
+
+                        movie = {
+                            'id': raw_movie.get('id'),
+                            'title': raw_movie.get('title'),
+                            'original_language': raw_movie.get('original_language'),
+                            'overview': raw_movie.get('overview'),
+                            'popularity': raw_movie.get('popularity'),
+                            'poster_path': raw_movie.get('poster_path'),
+                            'release_date': raw_movie.get('release_date'),
+                            'vote_average': raw_movie.get('vote_average'),
+                            'vote_count': raw_movie.get('vote_count'),
+                            'genres': movie_genres,
+                        }
+                        custom_results.append(movie)
+                custom_results_data['results'] =  custom_results
+                return custom_results_data
+
+        elif media_type == "tv":
+            if not sort:
+                sort = "popularity.desc"
+                
+            if search_type == "popular":
+                url = f"https://api.themoviedb.org/3/discover/tv?include_adult=false&include_null_first_air_dates=true&language=en-US&page={page}&sort_by={sort}"
+            elif search_type == "upcoming":
+                url = f"https://api.themoviedb.org/3/discover/tv?include_adult=false&include_null_first_air_dates=false&language=en-US&page={page}&first_air_date.gte={today_date}&first_air_date.lte={next_3_month_date}&sort_by={sort}"
+            elif search_type == "anticipated":
+                url = f"https://api.themoviedb.org/3/discover/tv?include_adult=false&include_null_first_air_dates=false&language=en-US&page={page}&first_air_date.gte={today_date}&sort_by={sort}"
+            elif search_type == "new":
+                url = f"https://api.themoviedb.org/3/discover/tv?include_adult=false&include_null_first_air_dates=false&language=en-US&page={page}&first_air_date.gte={last_month_date}&first_air_date.lte={today_date}&sort_by={sort}"
+            elif search_type == "airing": 
+                url = f"https://api.themoviedb.org/3/discover/tv?include_adult=false&include_null_first_air_dates=false&language=en-US&page={page}&air_date.gte={last_week_date}&air_date.lte={next_week_date}&with_status=0|2&sort_by={sort}"
+
+            if url:
+                if genre:
+                    url = f"{url}&with_genres={genre}"
+                if year:
+                    url = f"{url}&first_air_date_year={year}"
+                if sort != "popularity.desc" and (search_type == "popular" or search_type == "airing"):
+                    url = f"{url}&vote_count.gte=1000"
+                if exclude_reality:
+                    url = f"{url}&without_genres=10764"
+                if exclude_talk:
+                    if "without_genres" in url:
+                        url = f"{url},10767"
+                    else:
+                        url = f"{url}&without_genres=10767"
+                if exclude_news:
+                    if "without_genres" in url:
+                        url = f"{url},10763"
+                        print(url)
+                    else:
+                        url = f"{url}&without_genres=10763"
+            response = requests.get(f"{url}&api_key={TMDB_API_KEY}").json()
+
+            custom_results = []
+            custom_results_data = {'page': response.get('page'), 'total_pages': min(response.get('total_pages'), 500)}
+            results = response.get('results')
+            if results:
+                for raw_show in results:
+                    show_genres = []
+                    if raw_show.get("genre_ids"):
+                        for show_genre in raw_show.get("genre_ids"):
+                            if tv_genres_by_id.get(show_genre):
+                                show_genres.append(tv_genres_by_id.get(show_genre))
+                    show = {
+                        'id': raw_show.get('id'),
+                        'title': raw_show.get('name'),
+                        'original_language': raw_show.get('original_language'),
+                        'overview': raw_show.get('overview'),
+                        'popularity': raw_show.get('popularity'),
+                        'poster_path': raw_show.get('poster_path'),
+                        'release_date': raw_show.get('first_air_date'),
+                        'vote_average': raw_show.get('vote_average'),
+                        'vote_count': raw_show.get('vote_count'),
+                        'genres': show_genres,
+                    }
+                    custom_results.append(show)
+            custom_results_data['results'] =  custom_results
+            return custom_results_data
+        elif media_type == "game":
+
+            fields = "name, cover.image_id, total_rating, total_rating_count, first_release_date, slug, hypes, summary, genres.name, rating, rating_count"
+            filters = ""
+            if search_type == "popular":
+                filters = f"first_release_date >= {last_3_month_stemp}"
+
+            elif search_type == "upcoming":
+                filters = f"first_release_date >= {today_stemp} & first_release_date <= {next_3_month_stemp}"
+
+            elif search_type == "anticipated":
+                filters = f"first_release_date >= {next_3_month_stemp}"
+
+            elif search_type == "new":
+                filters = f"first_release_date >= {last_3_month_stemp} & first_release_date < {today_stemp}"
+
+            if filters:
+                if genre:
+                    filters = f"{filters} & genres = {genre}"
+
+                offset = (int(page) - 1) * 20
+                response = requests.post("https://api.igdb.com/v4/games", headers=igdb_headers, data=f"fields {fields}; where themes != (42) & game_type = (0, 8) & {filters}; sort hypes desc; limit 21; offset {offset};").json()
+                has_more = len(response) > 20
+
+                custom_results = []
+                custom_results_data = {"has_more": has_more}
+                if response:
+                    for raw_game in response[:20]:
+                        game_genres = []
+                        if raw_game.get("genres"):
+                            game_genres = [game_genre.get("name") for game_genre in raw_game.get("genres")]
+
+                        game = {
+                            'id': raw_game.get('id'),
+                            'title': raw_game.get('name'),
+                            'overview': raw_game.get('summary'),
+                            'popularity': raw_game.get('hypes'),
+                            'poster_path': (raw_game.get('cover') or {}).get("image_id"),
+                            'release_date': datetime.fromtimestamp(raw_game.get('first_release_date')).date().isoformat(),
+                            'vote_average': raw_game.get('rating', 0.0),
+                            'vote_count': raw_game.get('rating_count', 0),
+                            'genres': game_genres,
+                        }
+                        custom_results.append(game)
+                custom_results_data['results'] =  custom_results
+                return custom_results_data
+        return {}
+    except Exception:
+        return {}
+
 @app.route('/api/get-data', methods=['POST'])
 def get_watchlist():
     body = request.get_json() or {}
@@ -2366,6 +2582,30 @@ def get_recommendations():
     result_str = response.json().get('result')
     data = json.loads(result_str) if result_str else []
     return jsonify(data), 200
+
+@app.route('/api/discaver/get/<media_type>', methods=['POST'])
+def send_discaver(media_type):
+    try:
+        
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        search_type = request.args.get('search_type', 'popular')
+        page = request.args.get('page', '1')
+        genre = request.args.get('genre')
+        year = request.args.get('year')
+        sort = request.args.get('sort')
+        exclude_reality = request.args.get('exclude_reality', 'true').lower() == 'true'
+        exclude_talk = request.args.get('exclude_talk', 'true').lower() == 'true'
+        exclude_news = request.args.get('exclude_news', 'true').lower() == 'true'
+
+        data = get_discaver(media_type, search_type, page, genre, year, sort, exclude_reality, exclude_talk, exclude_news)
+
+        return jsonify(data), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": f"{e}"}), 500
+        
 
 @app.route('/api/manifest.json', methods=['GET'])
 def manifest():
