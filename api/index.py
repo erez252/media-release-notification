@@ -2749,11 +2749,19 @@ def catalog(content_type, catalog_id_path):
                 for movie in db_data:
                     if movie.get("media_type") == "movie":
                         poster_path = movie.get("poster_path")
+                        releaseInfo = ""
+                        if item.get("release_date"):
+                            releaseInfo = datetime.fromisoformat(item.get("release_date")).year
                         movies.append({
                             "id": movie.get("imdb_id") if movie.get("imdb_id") else f"tmdb:{movie.get('id')}", 
                             "type": "movie",
                             "name": f"{movie['title']}",
-                            "poster": f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else "https://placehold.co"
+                            "poster": f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else "https://placehold.co",
+                            "description": movie.get("overview"),
+                            "genres": [g["name"] for g in movie.get("genres", [])],
+                            "imdbRating": str(round(movie.get("vote_average", 0), 1)) if movie.get("vote_average") else None,
+                            "posterShape": "poster",
+                            "releaseInfo": releaseInfo
                             }) 
                 return jsonify({"metas": movies})
             if content_type == "series":
@@ -2762,11 +2770,26 @@ def catalog(content_type, catalog_id_path):
                     poster_path = show.get("poster_path")
                     if show["media_type"] == "tv":
                         item_id = show.get("imdb_id") if show.get("imdb_id") else f"tmdb:{show.get('id')}"
+                        releaseInfo = ""
+                        if show.get("first_air_date"):
+                            if show.get("status") == "Returning Series":
+                                releaseInfo = f"{datetime.fromisoformat(show.get("first_air_date")).year}-"
+                            elif show.get("last_air_date"):
+                                releaseInfo = f"{datetime.fromisoformat(show.get("first_air_date")).year}-{datetime.fromisoformat(show.get("last_air_date")).year}"
+                            else:
+                                releaseInfo = f"{datetime.fromisoformat(show.get("first_air_date")).year}"
+                               
+                        
                         shows.append({
                             "id": item_id,
                             "type": "series",
                             "name": f"{show.get('title') or show.get('name', 'Unknown')}",
-                            "poster": f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else "https://placehold.co"
+                            "poster": f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else "https://placehold.co",
+                            "description": shows.get("overview"),
+                            "genres": [g["name"] for g in shows.get("genres", [])],
+                            "imdbRating": str(round(shows.get("vote_average", 0), 1)) if shows.get("vote_average") else None,
+                            "posterShape": "poster",
+                            "releaseInfo": releaseInfo
                         })
                 return jsonify({"metas": shows})
 
