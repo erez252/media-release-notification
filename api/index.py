@@ -2770,7 +2770,7 @@ def catalog(content_type, catalog_id_path):
                             "releaseInfo": releaseInfo
                             }) 
                         if isinstance(movie.get("runtime"), (int, float)) and movie.get("runtime") > 0:
-                            movies["runtime"] = f"{int(movie.get("runtime"))} min"
+                            movie["runtime"] = f"{int(movie.get("runtime"))} min"
                 return jsonify({"metas": movies})
             if content_type == "series":
                 shows = []
