@@ -2748,6 +2748,12 @@ def catalog(content_type, catalog_id_path):
                 movies = []
                 for movie in db_data:
                     if movie.get("media_type") == "movie":
+                        
+                        if movie.get("digital"):
+                            info = "On Digital"
+                        else:
+                            info = "Not On Digital yet"
+                            
                         poster_path = movie.get("poster_path")
                         releaseInfo = ""
                         if movie.get("release_date"):
@@ -2757,12 +2763,14 @@ def catalog(content_type, catalog_id_path):
                             "type": "movie",
                             "name": f"{movie['title']}",
                             "poster": f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else "https://placehold.co",
-                            "description": movie.get("overview"),
+                            "description": f"({info}) {movie.get("overview")}",
                             "genres": [g["name"] for g in movie.get("genres", [])],
                             "imdbRating": str(round(movie.get("vote_average", 0), 1)) if movie.get("vote_average") else None,
                             "posterShape": "poster",
                             "releaseInfo": releaseInfo
                             }) 
+                        if isinstance(movie.get("runtime"), (int, float)) and movie.get("runtime") > 0:
+                            movies["runtime"] = f"{int(movie.get("runtime"))} min"
                 return jsonify({"metas": movies})
             if content_type == "series":
                 shows = []
