@@ -2750,8 +2750,8 @@ def catalog(content_type, catalog_id_path):
                     if movie.get("media_type") == "movie":
                         poster_path = movie.get("poster_path")
                         releaseInfo = ""
-                        if item.get("release_date"):
-                            releaseInfo = datetime.fromisoformat(item.get("release_date")).year
+                        if movie.get("release_date"):
+                            releaseInfo = datetime.fromisoformat(movie.get("release_date")).year
                         movies.append({
                             "id": movie.get("imdb_id") if movie.get("imdb_id") else f"tmdb:{movie.get('id')}", 
                             "type": "movie",
