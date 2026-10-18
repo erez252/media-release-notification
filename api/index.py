@@ -2785,9 +2785,9 @@ def catalog(content_type, catalog_id_path):
                             "type": "series",
                             "name": f"{show.get('title') or show.get('name', 'Unknown')}",
                             "poster": f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else "https://placehold.co",
-                            "description": shows.get("overview"),
-                            "genres": [g["name"] for g in shows.get("genres", [])],
-                            "imdbRating": str(round(shows.get("vote_average", 0), 1)) if shows.get("vote_average") else None,
+                            "description": show.get("overview"),
+                            "genres": [g["name"] for g in show.get("genres", [])],
+                            "imdbRating": str(round(show.get("vote_average", 0), 1)) if show.get("vote_average") else None,
                             "posterShape": "poster",
                             "releaseInfo": releaseInfo
                         })
