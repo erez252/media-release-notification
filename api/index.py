@@ -2143,9 +2143,11 @@ def make_calendar():
             response = requests.get("https://api.tvmaze.com/schedule/full")
             data = response.json()
             for show in data:
-                if ((show.get("_embedded") or {}).get("show") or {}).get("id") in id_list or any(((show.get("_embedded") or {}).get("show") or {}).get("name", "").lower().startswith(name.lower()) for name in name_list):
+                tv_show_info = (show.get("_embedded") or {}).get("show") or {}
+                if tv_show_info.get("id") in id_list or any(tv_show_info.get("name", "").lower().startswith(name.lower()) for name in name_list):
                     tvmaze_id = ((show.get("_embedded") or {}).get("show") or {}).get("id")
-                    db_item = next(item for item in db_data if item.get("tvmaze_id") == tvmaze_id)
+                    tvmaze_show_name = ((show.get("_embedded") or {}).get("show") or {}).get("name")
+                    db_item = db_item = db_item = next((item for item in db_data if item.get("tvmaze_id") == tvmaze_id or tvmaze_show_name.lower().startswith(item.get("name", "").lower())), {})
                     ep_type = "Regular"
                     max_ep_number = max(e["number"] for e in data if ((e.get("_embedded") or {}).get("show") or {}).get("id") == tvmaze_id and e.get("season") == show.get("season"))
                     if show["number"] == max_ep_number:
