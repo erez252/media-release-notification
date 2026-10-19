@@ -2143,8 +2143,7 @@ def make_calendar():
             response = requests.get("https://api.tvmaze.com/schedule/full")
             data = response.json()
             for show in data:
-                tv_show_info = (show.get("_embedded") or {}).get("show") or {}
-                if tv_show_info.get("id") in id_list or any(tv_show_info.get("name", "").lower().startswith(name.lower()) for name in name_list):
+                if ((show.get("_embedded") or {}).get("show") or {}).get("id") in id_list or any(((show.get("_embedded") or {}).get("show") or {}).get("name", "").lower().startswith(name.lower()) for name in name_list):
                     tvmaze_id = ((show.get("_embedded") or {}).get("show") or {}).get("id")
                     db_item = next(item for item in db_data if item.get("tvmaze_id") == tvmaze_id)
                     ep_type = "Regular"
