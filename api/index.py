@@ -2124,11 +2124,9 @@ def stremio_sync():
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500  
 
-def safe_match(tv_name, target_name):
-    tv, target = tv_name.lower(), target_name.lower()
-    if len(target) < 3:
-        return tv == target
-    return tv == target or tv.startswith(target + " ")
+def safe_match(a, b):
+    x, y = a.lower().strip(), b.lower().strip()
+    return x == y or (len(x) >= 3 and y.startswith(x + " ")) or (len(y) >= 3 and x.startswith(y + " "))
 
 @app.route('/api/calendar/make', methods=['POST'])
 def make_calendar():
