@@ -676,6 +676,19 @@ def get_discaver(media_type, search_type, page, genre, year, sort, exclude_reali
     except Exception:
         return {}
 
+def safe_match(a, b):
+    x, y = a.lower().strip(), b.lower().strip()
+    if x == y:
+        return True
+    
+    # Only allow prefix matching if the base title is long enough (> 4 chars)
+    if len(x) > 4 and y.startswith(x + " "):
+        return True
+    if len(y) > 4 and x.startswith(y + " "):
+        return True
+        
+    return False
+
 @app.route('/api/get-data', methods=['POST'])
 def get_watchlist():
     body = request.get_json() or {}
@@ -1173,16 +1186,26 @@ def check_tv_v2():
         data = response.json() or []
         data_web = response_web.json() or []
         new_ep = []
+        name_list = [item.get("title") for item in db_data if item.get("tvmaze_id")]
         if data or data_web:
             for ep in data + data_web:
-                if ((((ep.get("show") or {}).get("id") or "") or (((ep.get("_embedded") or {}).get("show") or {}).get("id") or "")) in id_list):
+                tv_show_info = (ep.get("show") or {}) or ((ep.get("_embedded") or {}).get("show") or {})
+                tvmaze_id = tv_show_info.get("id")
+                tvmaze_show_name = tv_show_info.get("name", "")
+                if tvmaze_id in id_list or any(safe_match(tvmaze_show_name, title) for title in name_list):
                     new_ep.append(ep)
             if new_ep:
                 new_ep_formated = []
                 for ep in new_ep:
                     tvmaze_id = (((ep.get("show") or {}).get("id") or "") or (((ep.get("_embedded") or {}).get("show") or {}).get("id") or ""))
-                    show_id = [item["id"] for item in db_data if item.get("tvmaze_id") == tvmaze_id]
-                    poster_path = [item["poster_path"] for item in db_data if item.get("tvmaze_id") == tvmaze_id]
+                    show_id = [
+                        item["id"] for item in db_data 
+                        if item.get("tvmaze_id") == tvmaze_id or safe_match(tvmaze_show_name, item.get("title", ""))
+                    ]
+                    poster_path = [
+                        item["poster_path"] for item in db_data 
+                        if item.get("tvmaze_id") == tvmaze_id or safe_match(tvmaze_show_name, item.get("title", ""))
+                    ]
                     
                     show_time_stemp = datetime.fromisoformat(ep.get("airstamp") or f"{ep.get('airdate')}T12:00:00+00:00")
                     if not ep.get("airtime"):
@@ -2124,18 +2147,7 @@ def stremio_sync():
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500  
 
-def safe_match(a, b):
-    x, y = a.lower().strip(), b.lower().strip()
-    if x == y:
-        return True
-    
-    # Only allow prefix matching if the base title is long enough (> 4 chars)
-    if len(x) > 4 and y.startswith(x + " "):
-        return True
-    if len(y) > 4 and x.startswith(y + " "):
-        return True
-        
-    return False
+
 
 @app.route('/api/calendar/make', methods=['POST'])
 def make_calendar():
