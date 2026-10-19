@@ -2151,7 +2151,7 @@ def make_calendar():
                 tvmaze_id = tv_show_info.get("id")
                 tvmaze_show_name = tv_show_info.get("name", "")
                 if tvmaze_id in id_list or any(safe_match(tvmaze_show_name, name) for name in name_list):
-                    db_item = next((item for item in db_data if item.get("tvmaze_id") == tvmaze_id or safe_match(tvmaze_show_name, item.get("name", ""))), {})
+                    db_item = next((item for item in db_data if item.get("tvmaze_id") == tvmaze_id or safe_match(tvmaze_show_name, item.get("title", ""))), {})
                     ep_type = "Regular"
                     max_ep_number = max(e["number"] for e in data if ((e.get("_embedded") or {}).get("show") or {}).get("id") == tvmaze_id and e.get("season") == show.get("season"))
                     if show["number"] == max_ep_number:
