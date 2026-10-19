@@ -2124,6 +2124,12 @@ def stremio_sync():
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500  
 
+def safe_match(tv_name, target_name):
+    tv, target = tv_name.lower(), target_name.lower()
+    if len(target) < 3:
+        return tv == target
+    return tv == target or tv.startswith(target + " ")
+
 @app.route('/api/calendar/make', methods=['POST'])
 def make_calendar():
     
@@ -2144,10 +2150,10 @@ def make_calendar():
             data = response.json()
             for show in data:
                 tv_show_info = (show.get("_embedded") or {}).get("show") or {}
-                if tv_show_info.get("id") in id_list or any(tv_show_info.get("name", "").lower().startswith(name.lower()) for name in name_list):
-                    tvmaze_id = ((show.get("_embedded") or {}).get("show") or {}).get("id")
-                    tvmaze_show_name = ((show.get("_embedded") or {}).get("show") or {}).get("name")
-                    db_item = db_item = db_item = next((item for item in db_data if item.get("tvmaze_id") == tvmaze_id or tvmaze_show_name.lower().startswith(item.get("name", "").lower())), {})
+                tvmaze_id = tv_show_info.get("id")
+                tvmaze_show_name = tv_show_info.get("name", "")
+                if tvmaze_id in id_list or any(safe_match(tvmaze_show_name, name) for name in name_list):
+                    db_item = next((item for item in db_data if item.get("tvmaze_id") == tvmaze_id or safe_match(tvmaze_show_name, item.get("name", ""))), {})
                     ep_type = "Regular"
                     max_ep_number = max(e["number"] for e in data if ((e.get("_embedded") or {}).get("show") or {}).get("id") == tvmaze_id and e.get("season") == show.get("season"))
                     if show["number"] == max_ep_number:
