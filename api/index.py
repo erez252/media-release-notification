@@ -2145,7 +2145,19 @@ def stremio_sync():
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500  
 
-
+def is_show_match(item, tvmaze_id, tvmaze_show_name):
+    if item.get("tvmaze_id") == tvmaze_id:
+        return True
+    
+    tv_name = tvmaze_show_name.lower().strip()
+    
+    # Check main title
+    if item.get("title", "").lower().strip() == tv_name:
+        return True
+        
+    # Check alternative titles
+    alt_titles = item.get("alternative_titles") or []
+    return any(alt.get("title", "").lower().strip() == tv_name for alt in alt_titles)
 
 @app.route('/api/calendar/make', methods=['POST'])
 def make_calendar():
@@ -2162,15 +2174,29 @@ def make_calendar():
         tv_calendar = []
         def make_tv_calendar():
             id_list = [item.get("tvmaze_id") for item in db_data if item.get("tvmaze_id")]
-            name_list = [item.get("title") for item in db_data if item.get("tvmaze_id")]
+            # name_list = [item.get("title") for item in db_data if item.get("tvmaze_id")]
+            name_list = []
+            for item in db_data:
+                if item.get("tvmaze_id"):
+                    # Add the main title
+                    if item.get("title"):
+                        name_list.append(item["title"])
+
+                    # Add all alternative titles
+                    alt_titles = item.get("alternative_titles") or []
+                    for alt in alt_titles:
+                        if alt.get("title"):
+                            name_list.append(alt["title"])
+            name_set = {name.lower().strip() for name in name_list}
+            
             response = requests.get("https://api.tvmaze.com/schedule/full")
             data = response.json()
             for show in data:
                 tv_show_info = (show.get("_embedded") or {}).get("show") or {}
                 tvmaze_id = tv_show_info.get("id")
                 tvmaze_show_name = tv_show_info.get("name", "")
-                if tvmaze_id in id_list or any(safe_match(tvmaze_show_name, name) for name in name_list):
-                    db_item = next((item for item in db_data if item.get("tvmaze_id") == tvmaze_id or safe_match(tvmaze_show_name, item.get("title", ""))), {})
+                if tvmaze_id in id_list or tvmaze_show_name.lower().strip() in name_set:
+                    db_item = next((item for item in db_data if is_show_match(item, tvmaze_id, tvmaze_show_name)), {})
                     ep_type = "Regular"
                     max_ep_number = max(e["number"] for e in data if ((e.get("_embedded") or {}).get("show") or {}).get("id") == tvmaze_id and e.get("season") == show.get("season"))
                     if show["number"] == max_ep_number:
