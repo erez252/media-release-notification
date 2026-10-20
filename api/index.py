@@ -391,7 +391,7 @@ def send_game_to_qstash(delay, body):
         
 def get_data_for_add_item(media_id, media_type):
 
-        movie_response = requests.get(f"https://api.themoviedb.org/3/{media_type}/{media_id}?api_key={TMDB_API_KEY}&append_to_response=external_ids")
+        movie_response = requests.get(f"https://api.themoviedb.org/3/{media_type}/{media_id}?api_key={TMDB_API_KEY}&append_to_response=external_ids,alternative_titles")
         
         
         digital = check_if_digital(media_id)
@@ -422,7 +422,8 @@ def get_data_for_add_item(media_id, media_type):
             movie_data["first_air_date"] = raw_movie_data.get("first_air_date", None)
             movie_data["last_air_date"] = raw_movie_data.get("last_air_date", None)
             movie_data['next_air_date'] = (raw_movie_data.get('next_episode_to_air') or {}).get("air_date") or None
-            
+
+            movie_data['alternative_titles'] = (raw_movie_data.get('alternative_titles', "") or {}).get("results", []) or []
             last_episode_to_air = raw_movie_data.get("last_episode_to_air", {})
             if last_episode_to_air:
                 movie_data["last_episode_to_air"] = last_episode_to_air.get("air_date", None)
@@ -1172,7 +1173,6 @@ def prepper_to_send_movie_notification():
 def check_tv_v2():
     
     
-    
     try:
         auth_header = request.headers.get("authorization", "")
         if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
@@ -1296,7 +1296,7 @@ def updater():
                         tvmaze_data = response.json()
                         item["tvmaze_id"] = tvmaze_data.get("id")
             
-            response = requests.get(f"https://api.themoviedb.org/3/{item['media_type']}/{item['id']}?api_key={TMDB_API_KEY}&append_to_response=release_dates,external_ids")
+            response = requests.get(f"https://api.themoviedb.org/3/{item['media_type']}/{item['id']}?api_key={TMDB_API_KEY}&append_to_response=release_dates,external_ids,alternative_titles")
             data = response.json()
             
             limit -= 1
@@ -1321,6 +1321,9 @@ def updater():
 
 
             item['imdb_id'] = data.get('imdb_id') or (data.get('external_ids') or {}).get("imdb_id") or ""
+            if item.get('media_type', "") == "tv":
+                item['alternative_titles'] = (data.get('alternative_titles', "") or {}).get("results", []) or []
+            
                 
             item['last_updated'] = datetime.now(timezone.utc).isoformat()
            
