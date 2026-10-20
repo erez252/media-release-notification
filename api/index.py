@@ -1197,7 +1197,9 @@ def check_tv_v2():
             if new_ep:
                 new_ep_formated = []
                 for ep in new_ep:
-                    tvmaze_id = (((ep.get("show") or {}).get("id") or "") or (((ep.get("_embedded") or {}).get("show") or {}).get("id") or ""))
+                    tv_show_info = (ep.get("show") or {}) or ((ep.get("_embedded") or {}).get("show") or {})
+                    tvmaze_id = tv_show_info.get("id")
+                    tvmaze_show_name = tv_show_info.get("name", "")
                     show_id = [
                         item["id"] for item in db_data 
                         if item.get("tvmaze_id") == tvmaze_id or safe_match(tvmaze_show_name, item.get("title", ""))
