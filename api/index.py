@@ -1200,14 +1200,7 @@ def check_tv_v2():
                     tv_show_info = (ep.get("show") or {}) or ((ep.get("_embedded") or {}).get("show") or {})
                     tvmaze_id = tv_show_info.get("id")
                     tvmaze_show_name = tv_show_info.get("name", "")
-                    show_id = [
-                        item["id"] for item in db_data 
-                        if item.get("tvmaze_id") == tvmaze_id or safe_match(tvmaze_show_name, item.get("title", ""))
-                    ]
-                    poster_path = [
-                        item["poster_path"] for item in db_data 
-                        if item.get("tvmaze_id") == tvmaze_id or safe_match(tvmaze_show_name, item.get("title", ""))
-                    ]
+                    db_item = next((item for item in db_data if item.get("tvmaze_id") == tvmaze_id or safe_match(tvmaze_show_name, item.get("title", ""))), {})
                     
                     show_time_stemp = datetime.fromisoformat(ep.get("airstamp") or f"{ep.get('airdate')}T12:00:00+00:00")
                     if not ep.get("airtime"):
@@ -1231,14 +1224,14 @@ def check_tv_v2():
                                 
                     
                     new_ep_formated.append({
-                        "id": show_id[0],
-                        "show_name": (((ep.get("show") or {}).get("name") or "") or (((ep.get("_embedded") or {}).get("show") or {}).get("name") or "")),
+                        "id": db_item.get("id"),
+                        "show_name": db_item.get("title"),
                         "season": ep.get("season"),
                         "episode": ep.get("number"),
                         "airstamp": show_time_stemp.isoformat(),
                         "type": ep.get("type"),
                         "name": ep.get("name"),
-                        "poster_path": poster_path[0],
+                        "poster_path": db_item.get("poster_path"),
                     })
 
 
