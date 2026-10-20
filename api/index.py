@@ -692,10 +692,8 @@ def safe_match(a, b):
     return False
 
 def normalize_title(title):
-    cleaned = title.lower().strip()
-    # Remove colons and hyphens
+    cleaned = (title or "").lower().strip()
     cleaned = re.sub(r'[:-]', '', cleaned)
-    # Collapse multiple spaces left behind
     return re.sub(r'\s+', ' ', cleaned)
 
 @app.route('/api/get-data', methods=['POST'])
@@ -2157,13 +2155,15 @@ def is_show_match(item, tvmaze_id, tvmaze_show_name):
     if item.get("tvmaze_id") == tvmaze_id:
         return True
     
-    tv_norm = normalize_title(tvmaze_show_name)
+    norm_tv_name = normalize_title(tvmaze_show_name)
     
-    if normalize_title(item.get("title")) == tv_norm:
+    # Check main title
+    if normalize_title(item.get("title")) == norm_tv_name:
         return True
         
+    # Check alternative titles
     alt_titles = item.get("alternative_titles") or []
-    return any(normalize_title(alt.get("title")) == tv_norm for alt in alt_titles)
+    return any(normalize_title(alt.get("title")) == norm_tv_name for alt in alt_titles)
 
 @app.route('/api/calendar/make', methods=['POST'])
 def make_calendar():
