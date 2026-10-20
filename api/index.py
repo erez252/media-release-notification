@@ -681,10 +681,10 @@ def safe_match(a, b):
     if x == y:
         return True
     
-    # Only allow prefix matching if the base title is long enough (> 4 chars)
-    if len(x) > 4 and y.startswith(x + " "):
+    separators = (" ", ":", "-")
+    if len(x) > 4 and any(y.startswith(x + sep) for sep in separators):
         return True
-    if len(y) > 4 and x.startswith(y + " "):
+    if len(y) > 4 and any(x.startswith(y + sep) for sep in separators):
         return True
         
     return False
