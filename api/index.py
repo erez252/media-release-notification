@@ -8,6 +8,7 @@ from flask_cors import CORS
 from datetime import date, datetime, timezone, timedelta
 import threading
 from iso3166 import countries
+import re
 app = Flask(__name__)
 CORS(app)  # Handles CORS preflight headers automatically
 import urllib.parse
@@ -689,6 +690,13 @@ def safe_match(a, b):
         return True
         
     return False
+
+def normalize_title(title):
+    cleaned = title.lower().strip()
+    # Remove colons and hyphens
+    cleaned = re.sub(r'[:-]', '', cleaned)
+    # Collapse multiple spaces left behind
+    return re.sub(r'\s+', ' ', cleaned)
 
 @app.route('/api/get-data', methods=['POST'])
 def get_watchlist():
@@ -2149,15 +2157,13 @@ def is_show_match(item, tvmaze_id, tvmaze_show_name):
     if item.get("tvmaze_id") == tvmaze_id:
         return True
     
-    tv_name = tvmaze_show_name.lower().strip()
+    tv_norm = normalize_title(tvmaze_show_name)
     
-    # Check main title
-    if item.get("title", "").lower().strip() == tv_name:
+    if normalize_title(item.get("title")) == tv_norm:
         return True
         
-    # Check alternative titles
     alt_titles = item.get("alternative_titles") or []
-    return any(alt.get("title", "").lower().strip() == tv_name for alt in alt_titles)
+    return any(normalize_title(alt.get("title")) == tv_norm for alt in alt_titles)
 
 @app.route('/api/calendar/make', methods=['POST'])
 def make_calendar():
@@ -2187,7 +2193,7 @@ def make_calendar():
                     for alt in alt_titles:
                         if alt.get("title"):
                             name_list.append(alt["title"])
-            name_set = {name.lower().strip() for name in name_list}
+            name_set = {normalize_title(t) for t in name_list}
             
             response = requests.get("https://api.tvmaze.com/schedule/full")
             data = response.json()
