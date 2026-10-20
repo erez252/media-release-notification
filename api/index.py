@@ -691,6 +691,20 @@ def safe_match(a, b):
         
     return False
 
+def is_show_match(item, tvmaze_id, tvmaze_show_name):
+    if item.get("tvmaze_id") == tvmaze_id:
+        return True
+    
+    norm_tv_name = normalize_title(tvmaze_show_name)
+    
+    # Check main title
+    if normalize_title(item.get("title")) == norm_tv_name:
+        return True
+        
+    # Check alternative titles
+    alt_titles = item.get("alternative_titles") or []
+    return any(normalize_title(alt.get("title")) == norm_tv_name for alt in alt_titles)
+
 def normalize_title(title):
     cleaned = (title or "").lower().strip()
     cleaned = re.sub(r'[:-]', '', cleaned)
@@ -1192,13 +1206,25 @@ def check_tv_v2():
         data = response.json() or []
         data_web = response_web.json() or []
         new_ep = []
-        name_list = [item.get("title") for item in db_data if item.get("tvmaze_id")]
+        name_list = []
+        for item in db_data:
+            if item.get("tvmaze_id"):
+                # Add the main title
+                if item.get("title"):
+                    name_list.append(item["title"])
+                # Add all alternative titles
+                alt_titles = item.get("alternative_titles") or []
+                for alt in alt_titles:
+                    if alt.get("title"):
+                        name_list.append(alt["title"])
+        
+        name_set = {normalize_title(t) for t in name_list}
         if data or data_web:
             for ep in data + data_web:
                 tv_show_info = (ep.get("show") or {}) or ((ep.get("_embedded") or {}).get("show") or {})
                 tvmaze_id = tv_show_info.get("id")
                 tvmaze_show_name = tv_show_info.get("name", "")
-                if tvmaze_id in id_list or any(safe_match(tvmaze_show_name, title) for title in name_list):
+                if tvmaze_id in id_list or normalize_title(tvmaze_show_name) in name_set:
                     new_ep.append(ep)
             if new_ep:
                 new_ep_formated = []
@@ -1206,7 +1232,7 @@ def check_tv_v2():
                     tv_show_info = (ep.get("show") or {}) or ((ep.get("_embedded") or {}).get("show") or {})
                     tvmaze_id = tv_show_info.get("id")
                     tvmaze_show_name = tv_show_info.get("name", "")
-                    db_item = next((item for item in db_data if item.get("tvmaze_id") == tvmaze_id or safe_match(tvmaze_show_name, item.get("title", ""))), {})
+                    db_item = next((item for item in db_data if is_show_match(item, tvmaze_id, tvmaze_show_name)), {})
                     
                     show_time_stemp = datetime.fromisoformat(ep.get("airstamp") or f"{ep.get('airdate')}T12:00:00+00:00")
                     if not ep.get("airtime"):
@@ -2151,19 +2177,6 @@ def stremio_sync():
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500  
 
-def is_show_match(item, tvmaze_id, tvmaze_show_name):
-    if item.get("tvmaze_id") == tvmaze_id:
-        return True
-    
-    norm_tv_name = normalize_title(tvmaze_show_name)
-    
-    # Check main title
-    if normalize_title(item.get("title")) == norm_tv_name:
-        return True
-        
-    # Check alternative titles
-    alt_titles = item.get("alternative_titles") or []
-    return any(normalize_title(alt.get("title")) == norm_tv_name for alt in alt_titles)
 
 @app.route('/api/calendar/make', methods=['POST'])
 def make_calendar():
