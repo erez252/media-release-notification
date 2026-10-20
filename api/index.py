@@ -1222,17 +1222,17 @@ def check_tv_v2():
                                 show_time_stemp = show_time_stemp.replace(hour=9)
 
                                 
-                    
-                    new_ep_formated.append({
-                        "id": db_item.get("id"),
-                        "show_name": db_item.get("title"),
-                        "season": ep.get("season"),
-                        "episode": ep.get("number"),
-                        "airstamp": show_time_stemp.isoformat(),
-                        "type": ep.get("type"),
-                        "name": ep.get("name"),
-                        "poster_path": db_item.get("poster_path"),
-                    })
+                    if db_item:
+                        new_ep_formated.append({
+                            "id": db_item.get("id"),
+                            "show_name": db_item.get("title"),
+                            "season": ep.get("season"),
+                            "episode": ep.get("number"),
+                            "airstamp": show_time_stemp.isoformat(),
+                            "type": ep.get("type"),
+                            "name": ep.get("name"),
+                            "poster_path": db_item.get("poster_path"),
+                        })
 
 
                 new_ep_by_show = {}
