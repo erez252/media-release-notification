@@ -2292,7 +2292,7 @@ def make_calendar():
                 "date_format.format, platform.abbreviation, date, status,"
                 "game.name, game.game_type.type, game.involved_companies.developer, game.involved_companies.company.name, game.genres.name, game.cover.image_id,game.platforms.abbreviation,"
                 "game.parent_game,game.parent_game.name, game.parent_game.cover.image_id;"
-                f"where (game = ({formatted_ids}) | game.parent_game = ({formatted_ids})) & date >= {int(datetime.now(timezone.utc).timestamp())};"
+                f"where (game = ({formatted_ids}) | game.parent_game = ({formatted_ids})) & date >= {int((datetime.now(timezone.utc) - timedelta(days=2)).timestamp())};"
                 "sort date asc; "
                 "limit 500;"
             )
