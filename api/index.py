@@ -1436,7 +1436,7 @@ def game_updater():
                     time.sleep(sleep_for)
 
                 fields = (
-                        "name,cover.image_id,first_release_date,game_type,game_status,genres.name,hypes,summary,rating,rating_count,"
+                        "name,cover.image_id,first_release_date,game_type,game_status,genres.name,hypes,summary,rating,rating_count, game_status.status,"
                         "involved_companies.company.name,involved_companies.developer,involved_companies.publisher,"
                         "platforms.abbreviation,"
                         "release_dates.status.name,release_dates.date,"
@@ -1452,6 +1452,7 @@ def game_updater():
                 count += 1
                 data = response.json()
                 if not data:
+                    return jsonify({"success": False, "message": f"fail"}), 500
                     continue
                 game = data[0]
 
@@ -1471,6 +1472,17 @@ def game_updater():
                 item["vote_average"] = game.get("rating") or 0
                 item["vote_count"] = game.get("rating_count") or 0
 
+                game_status = (game.get("game_status") or {}).get("status")
+                release_date_raw = ""
+                if game.get("first_release_date"):
+                    release_date_raw = datetime.fromtimestamp(game.get("first_release_date"), timezone.utc)
+                if not game_status:
+                    if not release_date_raw or release_date_raw > datetime.now(timezone.utc):
+                        game_status = "Upcoming"
+                    else: 
+                        game_status = "Released"
+
+                item["status"] = game_status
                 update_one_item_in_db(item)
         return jsonify({"success": True, "message": "game_updater run successfully"}), 200
     except Exception as e:
