@@ -1062,11 +1062,7 @@ def send_tv_notification():
             
         first_ep = body[0]
         last_ep = body[-1]
-        episodes_count = ""
-        try:
-            episodes_count = len(body)
-        except Exception:
-            ...
+        episodes_count = len(body)
         show_id = first_ep.get("id")
         respons = requests.get(f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}")
         show_data = {}
@@ -1120,7 +1116,7 @@ def send_tv_notification():
               "embeds": [
                 {
                   "title": f"{first_ep.get("show_name")}",
-                  "description": f"{episodes_count} episodes are now available to watch.",
+                  "description": f"{episodes_count} new episodes are now available to watch.",
                   "color": 15844367,
                   "fields": [
                     {
