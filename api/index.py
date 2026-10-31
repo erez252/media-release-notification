@@ -716,9 +716,9 @@ def is_show_match(item, tvmaze_id, tvmaze_show_name):
 
 def normalize_title(title):
     cleaned = (title or "").lower().strip()
-    # Remove colons, hyphens, and apostrophes/quotes
-    cleaned = re.sub(r'[:-,\'\"’]', '', cleaned)
-    return re.sub(r'\s+', ' ', cleaned)
+    # Move the hyphen to the end so it's treated as a literal character
+    cleaned = re.sub(r"[:,\'\"’\-]", "", cleaned)
+    return re.sub(r"\s+", " ", cleaned)
 
 @app.route('/api/get-data', methods=['POST'])
 def get_watchlist():
