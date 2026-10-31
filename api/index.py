@@ -700,6 +700,12 @@ def safe_match(a, b):
         
     return False
 
+def normalize_title(title):
+    cleaned = (title or "").lower().strip()
+    # Move the hyphen to the end so it's treated as a literal character
+    cleaned = re.sub(r"[:,\'\"’\-]", "", cleaned)
+    return re.sub(r"\s+", " ", cleaned)
+
 def is_show_match(item, tvmaze_id, tvmaze_show_name):
     if item.get("tvmaze_id") == tvmaze_id:
         return True
@@ -714,11 +720,7 @@ def is_show_match(item, tvmaze_id, tvmaze_show_name):
     alt_titles = item.get("alternative_titles") or []
     return any(normalize_title(alt.get("title")) == norm_tv_name for alt in alt_titles)
 
-def normalize_title(title):
-    cleaned = (title or "").lower().strip()
-    # Move the hyphen to the end so it's treated as a literal character
-    cleaned = re.sub(r"[:,\'\"’\-]", "", cleaned)
-    return re.sub(r"\s+", " ", cleaned)
+
 
 @app.route('/api/get-data', methods=['POST'])
 def get_watchlist():
