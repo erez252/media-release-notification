@@ -1218,7 +1218,17 @@ def check_tv_v2():
         response = requests.get(f"https://api.tvmaze.com/schedule/?date={date_iso}")
         response_web = requests.get(f"https://api.tvmaze.com/schedule/web?date={date_iso}&country=")
         data = response.json() or []
-        data_web = response_web.json() or []
+        data_web = response_web.json() or [] 
+        
+        existing_ids = {ep.get("id") for ep in data + data_web if ep.get("id") is not None}
+        response_full = requests.get("https://api.tvmaze.com/schedule/full")
+        data_full = response_full.json() or []
+        fallback_eps = []
+        for ep in data_full:
+            airstamp = ep.get("airstamp")
+            if airstamp and airstamp.startswith(date_iso) and ep.get("id") not in existing_ids:
+                fallback_eps.append(ep)
+        
         new_ep = []
         name_list = []
         for item in db_data:
@@ -1233,8 +1243,8 @@ def check_tv_v2():
                         name_list.append(alt["title"])
         
         name_set = {normalize_title(t) for t in name_list}
-        if data or data_web:
-            for ep in data + data_web:
+        if data or data_web or fallback_eps:
+            for ep in data + data_web + fallback_eps:
                 tv_show_info = (ep.get("show") or {}) or ((ep.get("_embedded") or {}).get("show") or {})
                 tvmaze_id = tv_show_info.get("id")
                 tvmaze_show_name = tv_show_info.get("name", "")
