@@ -444,8 +444,8 @@ def get_data_for_add_item(media_id, media_type):
 
             external_ids = raw_movie_data.get("external_ids")
             
-            if external_ids.get("imdb_id"):
-                movie_data["imdb_id"] = external_ids.get("imdb_id")
+            movie_data["imdb_id"] = external_ids.get("imdb_id") or ""
+            movie_data["wikidata_id"] = external_ids.get("wikidata_id") or ""
             if external_ids.get("tvdb_id"):
                 movie_data["tvdb_id"] = external_ids.get("tvdb_id")
             
@@ -1377,6 +1377,7 @@ def updater():
 
 
             item['imdb_id'] = data.get('imdb_id') or (data.get('external_ids') or {}).get("imdb_id") or ""
+            item['wikidata_id'] = data.get('wikidata_id') or (data.get('external_ids') or {}).get("wikidata_id") or ""
             if item.get('media_type', "") == "tv":
                 item['alternative_titles'] = (data.get('alternative_titles', "") or {}).get("results", []) or []
             
