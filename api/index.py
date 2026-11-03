@@ -1644,7 +1644,7 @@ def get_movie_info():
         if not movie_id:
             return jsonify({"error": "misiing id"})
 
-        response = requests.get(f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&append_to_response=keywords,release_dates,videos,credits")
+        response = requests.get(f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&append_to_response=keywords,release_dates,videos,credits,external_ids")
         data = response.json()
 
         movie = {
@@ -1667,6 +1667,7 @@ def get_movie_info():
             "homepage": data.get("homepage", ""),
             "id": data.get("id", ""),
             "imdb_id": data.get("imdb_id", ""),
+            "wikidata_id": (data.get('external_ids') or {}).get("wikidata_id") or None,
             "keywords": (data.get("keywords") or {}).get("keywords") or [],
         }
 
@@ -1831,7 +1832,8 @@ def get_tv_info():
             "original_language": data.get("original_language", ""),
             "homepage": data.get("homepage", ""),
             "id": data.get("id", ""),
-            "imdb_id": data.get("imdb_id", ""),
+            "imdb_id": data.get("imdb_id", "") or (data.get('external_ids') or {}).get("imdb_id") or None,
+            "wikidata_id": (data.get('external_ids') or {}).get("wikidata_id") or None,
             "keywords": (data.get("keywords") or {}).get("keywords") or [],
         }
 
