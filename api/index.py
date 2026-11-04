@@ -1273,33 +1273,37 @@ def get_wikidata_data(wiki_id, media_type):
                         "wiki_id": wiki_data.get("seriesID"),
                         "name": wiki_data.get("seriesName"),
                     }
-                    if wiki_data.get("followsByName") and wiki_data.get("followsByTmdbID"):
+                    if wiki_data.get("followsByName") and (wiki_data.get("followsByMovieTmdbID") or wiki_data.get("followsByTvTmdbID")):
                         franchise["following"] = {
-                            "id": wiki_data.get("followsByTmdbID"),
+                            "id": wiki_data.get("followsByMovieTmdbID") or wiki_data.get("followsByTvTmdbID"),
                             "name": wiki_data.get("followsByName"),
                             "logo": wiki_data.get("followsByLogo"),
+                            "media_type": "tv" if wiki_data.get("followsByTvTmdbID") else "movie"
                         }
-                    if wiki_data.get("followsName") and wiki_data.get("followsTmdbID"):
+                    if wiki_data.get("followsName") and (wiki_data.get("followsMovieTmdbID") or wiki_data.get("followsTvTmdbID")):
                         franchise["previous"] = {
-                            "id": wiki_data.get("followsTmdbID"),
+                            "id": wiki_data.get("followsMovieTmdbID") or wiki_data.get("followsTvTmdbID"),
                             "name": wiki_data.get("followsName"),
                             "logo": wiki_data.get("followsLogo"),
+                            "media_type": "tv" if wiki_data.get("followsTvTmdbID") else "movie"
                         }
                     formatted_franchise.append(franchise)
                 
                 if wiki_data_type == 'franchiseDirect':
                     
-                    if wiki_data.get("followsByTmdbID"):
+                    if wiki_data.get("followsByMovieTmdbID") or wiki_data.get("followsByTvTmdbID"):
                         movie["following"] = {
-                            "id": wiki_data.get("followsByTmdbID"),
+                            "id": wiki_data.get("followsByMovieTmdbID") or wiki_data.get("followsByTvTmdbID"),
                             "name": wiki_data.get("followsByName"),
                             "logo": wiki_data.get("followsByLogo"),
+                            "media_type": "tv" if wiki_data.get("followsByTvTmdbID") else "movie"
                         }
-                    if wiki_data.get("followsTmdbID"):
+                    if wiki_data.get("followsMovieTmdbID") or wiki_data.get("followsTvTmdbID"):
                         movie["previous"] = {
-                            "id": wiki_data.get("followsTmdbID"),
+                            "id": wiki_data.get("followsMovieTmdbID") or wiki_data.get("followsTvTmdbID"),
                             "name": wiki_data.get("followsName"),
                             "logo": wiki_data.get("followsLogo"),
+                            "media_type": "tv" if wiki_data.get("followsTvTmdbID") else "movie"
                         }
                 if wiki_data_type == 'reviewScore':
                     review_count = None
