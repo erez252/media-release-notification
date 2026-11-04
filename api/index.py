@@ -2237,6 +2237,11 @@ def get_movie_info():
         if not movie_id:
             return jsonify({"error": "misiing id"})
 
+        wiki_data = {}
+        if body.get("wikiDataId"):
+            wiki_data = threading.Thread(target=get_wikidata_data, args=(body.get("wikiDataId") , "movie"))
+            wiki_data.start()
+            
         response = requests.get(f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&append_to_response=keywords,release_dates,videos,credits,external_ids")
         data = response.json()
 
@@ -2383,9 +2388,11 @@ def get_movie_info():
         if age_rating:
             movie["age_rating"] = age_rating
 
-        if movie.get("wikidata_id"):
+        wiki_data.join()
+        if movie.get("wikidata_id") and not wiki_data:
             movie.update(get_wikidata_data(movie.get("wikidata_id"), "movie"))
-
+        elif wiki_data:
+            movie.update(wiki_data)
 
         return jsonify(movie), 200
     except Exception as e:
