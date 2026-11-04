@@ -721,8 +721,564 @@ def is_show_match(item, tvmaze_id, tvmaze_show_name):
     alt_titles = item.get("alternative_titles") or []
     return any(normalize_title(alt.get("title")) == norm_tv_name for alt in alt_titles)
 
+def get_wikidata_data(wiki_id, media_type):
+    if media_type == "movie":
+        sparql_query = f"""
+        SELECT DISTINCT
+            ?tmdbID
+            ?type
+
+            ?seriesID
+            ?seriesName
+            ?followsID
+            ?followsName
+            ?followsByID
+            ?followsByName
+            ?followsTmdbID
+            ?followsByTmdbID
+
+            ?reviewScore
+            ?scoreSourceID
+            ?scoreSourceName
+            ?scoreDate
+            ?scoreMethodID
+            ?scoreMethodName
+            ?reviewCount
+            ?reviewCountUnitID
+            ?reviewCountUnitName
+            ?scoreSourceLogo
+
+            ?disneyPlusID
+            ?traktID
+            ?universeWikiID
+            ?universeName
+
+            ?mediaFranchiseID
+            ?mediaFranchiseName
+            
+            ?basedOnID
+            ?basedOnName
 
 
+        WHERE {{
+
+            {{
+                # FRANCHISE / SERIES RELATIONSHIPS
+
+                BIND("franchise" AS ?type)
+
+                wd:{wiki_id} p:P179 ?series_statement .
+                ?series_statement ps:P179 ?series_item .
+
+                BIND(STRAFTER(STR(?series_item), "/entity/") AS ?seriesID)
+
+                OPTIONAL {{
+                    ?series_statement pq:P155 ?follows_item .
+                    BIND(STRAFTER(STR(?follows_item), "/entity/") AS ?followsID)
+
+                    OPTIONAL {{
+                        ?follows_item wdt:P4947 | wdt:P6465 | wdt:P4985 ?followsTmdbID .
+                    }}
+                }}
+
+                OPTIONAL {{
+                    ?series_statement pq:P156 ?follows_by_item .
+                    BIND(STRAFTER(STR(?follows_by_item), "/entity/") AS ?followsByID)
+
+                    OPTIONAL {{
+                        ?follows_by_item wdt:P4947 | wdt:P6465 | wdt:P4985 ?followsByTmdbID .
+                    }}
+                }}
+
+                SERVICE wikibase:label {{
+                    bd:serviceParam wikibase:language "en,mul" .
+                    ?series_item rdfs:label ?seriesName .
+                    ?follows_item rdfs:label ?followsName .
+                    ?follows_by_item rdfs:label ?followsByName .
+                }}
+            }}
+
+            UNION
+
+            {{
+                # DIRECT MOVIE RELATIONSHIPS
+
+                BIND("franchiseDirect" AS ?type)
+
+                OPTIONAL {{
+                    wd:{wiki_id} wdt:P155 ?follows_item .
+                    BIND(STRAFTER(STR(?follows_item), "/entity/") AS ?followsID)
+
+                    OPTIONAL {{
+                        ?follows_item wdt:P4947 | wdt:P6465 | wdt:P4985 ?followsTmdbID .
+                    }}
+                }}
+
+                OPTIONAL {{
+                    wd:{wiki_id} wdt:P156 ?follows_by_item .
+                    BIND(STRAFTER(STR(?follows_by_item), "/entity/") AS ?followsByID)
+
+                    OPTIONAL {{
+                        ?follows_by_item wdt:P4947 | wdt:P6465 | wdt:P4985 ?followsByTmdbID .
+                    }}
+                }}
+
+                FILTER(BOUND(?follows_item) || BOUND(?follows_by_item))
+
+                SERVICE wikibase:label {{
+                    bd:serviceParam wikibase:language "en,mul" .
+                    ?follows_item rdfs:label ?followsName .
+                    ?follows_by_item rdfs:label ?followsByName .
+                }}
+            }}
+
+            UNION
+
+            {{
+                # REVIEW SCORES
+
+                BIND("reviewScore" AS ?type)
+
+                wd:{wiki_id} p:P444 ?score_statement .
+                ?score_statement ps:P444 ?reviewScore .
+
+                OPTIONAL {{
+                    ?score_statement pq:P447 ?scoreSource .
+                    BIND(STRAFTER(STR(?scoreSource), "/entity/") AS ?scoreSourceID)
+
+                    OPTIONAL {{
+                        ?scoreSource wdt:P154 ?scoreSourceLogo .
+                    }}
+                }}
+
+                OPTIONAL {{
+                    ?score_statement pq:P585 ?scoreDate .
+                }}
+
+                OPTIONAL {{
+                    ?score_statement pq:P459 ?scoreMethod .
+                    BIND(STRAFTER(STR(?scoreMethod), "/entity/") AS ?scoreMethodID)
+                }}
+
+                OPTIONAL {{
+                    ?score_statement pqv:P7887 ?reviewCountValue .
+
+                    ?reviewCountValue wikibase:quantityAmount ?reviewCount ;
+                                      wikibase:quantityUnit ?reviewCountUnit .
+
+                    BIND(STRAFTER(STR(?reviewCountUnit), "/entity/") AS ?reviewCountUnitID)
+                }}
+
+                SERVICE wikibase:label {{
+                    bd:serviceParam wikibase:language "en,mul" .
+                    ?scoreSource rdfs:label ?scoreSourceName .
+                    ?scoreMethod rdfs:label ?scoreMethodName .
+                    ?reviewCountUnit rdfs:label ?reviewCountUnitName .
+                }}
+            }}
+
+            UNION
+
+            {{
+                BIND("disneyPlus" AS ?type)
+                wd:{wiki_id} wdt:P7595 ?disneyPlusID .
+            }}
+
+            UNION
+
+            {{
+                BIND("trakt" AS ?type)
+                wd:{wiki_id} wdt:P8013 ?traktID .
+            }}
+
+            UNION
+
+            {{
+                BIND("universe" AS ?type)
+                wd:{wiki_id} wdt:P1434 ?universe_item .
+                BIND(STRAFTER(STR(?universe_item), "/entity/") AS ?universeWikiID)
+                SERVICE wikibase:label {{
+                    bd:serviceParam wikibase:language "en,mul" .
+                    ?universe_item rdfs:label ?universeName .
+                }}
+            }}
+
+            UNION
+
+            {{
+                # MEDIA FRANCHISE
+
+                BIND("mediaFranchise" AS ?type)
+
+                wd:{wiki_id} wdt:P8345 ?media_franchise_item .
+
+                BIND(STRAFTER(STR(?media_franchise_item), "/entity/") AS ?mediaFranchiseID)
+
+                SERVICE wikibase:label {{
+                    bd:serviceParam wikibase:language "en,mul" .
+                    ?media_franchise_item rdfs:label ?mediaFranchiseName .
+                }}
+            }}
+            
+            UNION
+
+            {{
+
+                BIND("basedOn" AS ?type)
+
+                wd:{wiki_id} wdt:P144 ?based_on_item .
+
+                BIND(STRAFTER(STR(?based_on_item), "/entity/") AS ?basedOnID)
+
+                SERVICE wikibase:label {{
+                    bd:serviceParam wikibase:language "en,mul" .
+                    ?based_on_item rdfs:label ?basedOnName .
+                }}
+            }}
+        }}
+        """
+    if media_type == "tv":
+        sparql_query = f"""
+        SELECT DISTINCT
+            ?tmdbID
+            ?type
+
+            ?seriesID
+            ?seriesName
+            ?followsID
+            ?followsName
+            ?followsByID
+            ?followsByName
+            ?followsTmdbID
+            ?followsByTmdbID
+
+            ?reviewScore
+            ?scoreSourceID
+            ?scoreSourceName
+            ?scoreDate
+            ?scoreMethodID
+            ?scoreMethodName
+            ?reviewCount
+            ?reviewCountUnitID
+            ?reviewCountUnitName
+            ?scoreSourceLogo
+
+            ?disneyPlusID
+            ?traktID
+            ?universeWikiID
+            ?universeName
+
+            ?mediaFranchiseID
+            ?mediaFranchiseName
+            
+            ?basedOnID
+            ?basedOnName
+
+        WHERE {{
+
+            # TV SERIES TMDB ID
+            OPTIONAL {{
+                wd:{wiki_id} wdt:P4983 ?tmdbID .
+            }}
+
+            {{
+                # FRANCHISE / SERIES RELATIONSHIPS
+
+                BIND("franchise" AS ?type)
+
+                wd:{wiki_id} p:P179 ?series_statement .
+                ?series_statement ps:P179 ?series_item .
+
+                BIND(STRAFTER(STR(?series_item), "/entity/") AS ?seriesID)
+
+                OPTIONAL {{
+                    ?series_statement pq:P155 ?follows_item .
+                    BIND(STRAFTER(STR(?follows_item), "/entity/") AS ?followsID)
+
+                    OPTIONAL {{
+                        ?follows_item wdt:P4983 ?followsTmdbID .
+                    }}
+                }}
+
+                OPTIONAL {{
+                    ?series_statement pq:P156 ?follows_by_item .
+                    BIND(STRAFTER(STR(?follows_by_item), "/entity/") AS ?followsByID)
+
+                    OPTIONAL {{
+                        ?follows_by_item wdt:P4983 ?followsByTmdbID .
+                    }}
+                }}
+
+                SERVICE wikibase:label {{
+                    bd:serviceParam wikibase:language "en,mul" .
+                    ?series_item rdfs:label ?seriesName .
+                    ?follows_item rdfs:label ?followsName .
+                    ?follows_by_item rdfs:label ?followsByName .
+                }}
+            }}
+
+            UNION
+
+            {{
+                # DIRECT TV SERIES RELATIONSHIPS
+
+                BIND("franchiseDirect" AS ?type)
+
+                OPTIONAL {{
+                    wd:{wiki_id} wdt:P155 ?follows_item .
+                    BIND(STRAFTER(STR(?follows_item), "/entity/") AS ?followsID)
+
+                    OPTIONAL {{
+                        ?follows_item wdt:P4983 ?followsTmdbID .
+                    }}
+                }}
+
+                OPTIONAL {{
+                    wd:{wiki_id} wdt:P156 ?follows_by_item .
+                    BIND(STRAFTER(STR(?follows_by_item), "/entity/") AS ?followsByID)
+
+                    OPTIONAL {{
+                        ?follows_by_item wdt:P4983 ?followsByTmdbID .
+                    }}
+                }}
+
+                FILTER(BOUND(?follows_item) || BOUND(?follows_by_item))
+
+                SERVICE wikibase:label {{
+                    bd:serviceParam wikibase:language "en,mul" .
+                    ?follows_item rdfs:label ?followsName .
+                    ?follows_by_item rdfs:label ?followsByName .
+                }}
+            }}
+
+            UNION
+
+            {{
+                # REVIEW SCORES
+
+                BIND("reviewScore" AS ?type)
+
+                wd:{wiki_id} p:P444 ?score_statement .
+                ?score_statement ps:P444 ?reviewScore .
+
+                OPTIONAL {{
+                    ?score_statement pq:P447 ?scoreSource .
+                    BIND(STRAFTER(STR(?scoreSource), "/entity/") AS ?scoreSourceID)
+
+                    OPTIONAL {{
+                        ?scoreSource wdt:P154 ?scoreSourceLogo .
+                    }}
+                }}
+
+                OPTIONAL {{
+                    ?score_statement pq:P585 ?scoreDate .
+                }}
+
+                OPTIONAL {{
+                    ?score_statement pq:P459 ?scoreMethod .
+                    BIND(STRAFTER(STR(?scoreMethod), "/entity/") AS ?scoreMethodID)
+                }}
+
+                OPTIONAL {{
+                    ?score_statement pqv:P7887 ?reviewCountValue .
+
+                    ?reviewCountValue wikibase:quantityAmount ?reviewCount ;
+                                      wikibase:quantityUnit ?reviewCountUnit .
+
+                    BIND(STRAFTER(STR(?reviewCountUnit), "/entity/") AS ?reviewCountUnitID)
+                }}
+
+                SERVICE wikibase:label {{
+                    bd:serviceParam wikibase:language "en,mul" .
+                    ?scoreSource rdfs:label ?scoreSourceName .
+                    ?scoreMethod rdfs:label ?scoreMethodName .
+                    ?reviewCountUnit rdfs:label ?reviewCountUnitName .
+                }}
+            }}
+
+            UNION
+
+            {{
+                # DISNEY+ SERIES ID
+
+                BIND("disneyPlus" AS ?type)
+                wd:{wiki_id} wdt:P7596 ?disneyPlusID .
+            }}
+
+            UNION
+
+            {{
+                # TRAKT ID
+
+                BIND("trakt" AS ?type)
+                wd:{wiki_id} wdt:P8013 ?traktID .
+            }}
+
+            UNION
+
+            {{
+                # UNIVERSE
+
+                BIND("universe" AS ?type)
+
+                wd:{wiki_id} wdt:P1434 ?universe_item .
+                BIND(STRAFTER(STR(?universe_item), "/entity/") AS ?universeWikiID)
+
+                SERVICE wikibase:label {{
+                    bd:serviceParam wikibase:language "en,mul" .
+                    ?universe_item rdfs:label ?universeName .
+                }}
+            }}
+
+            UNION
+
+            {{
+                # MEDIA FRANCHISE
+
+                BIND("mediaFranchise" AS ?type)
+
+                wd:{wiki_id} wdt:P8345 ?media_franchise_item .
+                BIND(STRAFTER(STR(?media_franchise_item), "/entity/") AS ?mediaFranchiseID)
+
+                SERVICE wikibase:label {{
+                    bd:serviceParam wikibase:language "en,mul" .
+                    ?media_franchise_item rdfs:label ?mediaFranchiseName .
+                }}
+            }}
+            
+            UNION
+
+            {{
+
+                BIND("basedOn" AS ?type)
+
+                wd:{wiki_id} wdt:P144 ?based_on_item .
+
+                BIND(STRAFTER(STR(?based_on_item), "/entity/") AS ?basedOnID)
+
+                SERVICE wikibase:label {{
+                    bd:serviceParam wikibase:language "en,mul" .
+                    ?based_on_item rdfs:label ?basedOnName .
+                }}
+            }}
+        }}
+        """
+
+    wiki_headers = {
+      "User-Agent": os.environ.get('WIKI_USER_AGENT'),
+      "Accept": "application/sparql-results+json",
+    }
+    
+    movie = {}
+    try:
+        response = requests.post(
+            "https://query.wikidata.org/sparql",
+            data={"query": sparql_query},
+            headers=wiki_headers,
+            timeout=5,
+        )
+        
+        if response.status_code == 200:
+            response_data = response.json()
+            bindings = response_data.get("results", {}).get("bindings", [])
+            
+            simplified_data = []
+            for binding in bindings:
+                simplified_data.append({key: value.get('value') for key, value in binding.items()})
+            
+            formatted_franchise = []
+            reviewScore = []
+            main_franchises = []
+            based_on = []
+
+            for wiki_data in simplified_data:
+                wiki_data_type = wiki_data.get("type")
+                
+                if wiki_data_type == 'franchise':
+                    franchise = {
+                        "wiki_id": wiki_data.get("seriesID"),
+                        "name": wiki_data.get("seriesName"),
+                    }
+                    if wiki_data.get("followsByName") and wiki_data.get("followsByTmdbID"):
+                        franchise["following"] = {
+                            "id": wiki_data.get("followsByTmdbID"),
+                            "name": wiki_data.get("followsByName"),
+                        }
+                    if wiki_data.get("followsName") and wiki_data.get("followsTmdbID"):
+                        franchise["previous"] = {
+                            "id": wiki_data.get("followsTmdbID"),
+                            "name": wiki_data.get("followsName"),
+                        }
+                    formatted_franchise.append(franchise)
+                
+                if wiki_data_type == 'franchiseDirect':
+                    
+                    if wiki_data.get("followsByTmdbID"):
+                        movie["following"] = {
+                            "id": wiki_data.get("followsByTmdbID"),
+                            "name": wiki_data.get("followsByName"),
+                        }
+                    if wiki_data.get("followsTmdbID"):
+                        movie["previous"] = {
+                            "id": wiki_data.get("followsTmdbID"),
+                            "name": wiki_data.get("followsName"),
+                        }
+                if wiki_data_type == 'reviewScore':
+                    review_count = None
+                    if wiki_data.get("reviewCount") and wiki_data.get("reviewCount").isdigit():
+                        review_count = int(wiki_data.get("reviewCount"))
+                    reviewScore.append({
+                        "score": wiki_data.get("reviewScore"),
+                        "source": wiki_data.get("scoreSourceName"),
+                        "source_logo": wiki_data.get("scoreSourceLogo"),
+                        "score_method": wiki_data.get("scoreMethodName"),
+                        "review_count_unit": wiki_data.get("reviewCountUnitName") if wiki_data.get("reviewCountUnitName") != '1' else None,
+                        "review_count": review_count,
+                    })
+                
+                if wiki_data_type == 'disneyPlus':
+                    movie["disney_plus"] = f"https://www.disneyplus.com/movies/wd/{wiki_data.get('disneyPlusID')}"
+                    if media_type == "tv":
+                        movie["disney_plus"] = f"https://www.disneyplus.com/series/wp/{wiki_data.get('disneyPlusID')}"
+                
+                if wiki_data_type == 'trakt':
+                    movie["trakt"] = f"https://trakt.tv/{wiki_data.get('traktID')}"
+        
+                if wiki_data_type == 'universe':
+                    if wiki_data.get("universeName"):
+                        movie["universe"] = {
+                            "name": wiki_data.get("universeName"),
+                            "wiki_id": wiki_data.get("universeWikiID"),
+                        }
+                
+                if wiki_data_type == 'mediaFranchise':
+                    if wiki_data.get("mediaFranchiseName"):
+                        main_franchises.append({
+                            "name": wiki_data.get("mediaFranchiseName"),
+                            "wiki_id": wiki_data.get("mediaFranchiseID"),
+                        })
+                
+                if wiki_data_type == 'basedOn':
+                    if wiki_data.get("basedOnName"):
+                        based_on.append({
+                            "name": wiki_data.get("basedOnName"),
+                            "wiki_id": wiki_data.get("basedOnID"),
+                        })
+            
+            if formatted_franchise:
+                movie["franchises"] = formatted_franchise
+            if main_franchises:
+                movie["main_franchises"] = main_franchises
+            if reviewScore:
+                movie["scores"] = reviewScore
+            if based_on:
+                movie["based_on"] = based_on
+            
+        return(movie)
+        
+    except:
+        return {}
+    
 @app.route('/api/get-data', methods=['POST'])
 def get_watchlist():
     body = request.get_json() or {}
@@ -1789,6 +2345,9 @@ def get_movie_info():
                                 break
         if age_rating:
             movie["age_rating"] = age_rating
+
+        if movie.get("wikidata_id"):
+            movie.update(get_wikidata_data(movie.get("wikidata_id"), "movie"))
 
 
         return jsonify(movie), 200
