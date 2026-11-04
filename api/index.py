@@ -2524,6 +2524,9 @@ def get_tv_info():
         if age_rating:
             show["age_rating"] = age_rating
 
+        if show.get("wikidata_id"):
+            show.update(get_wikidata_data(show.get("wikidata_id"), "tv"))
+            
         return jsonify(show), 200
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
