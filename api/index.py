@@ -2387,8 +2387,8 @@ def get_movie_info():
                                 break
         if age_rating:
             movie["age_rating"] = age_rating
-
-        wiki_data.join()
+        if body.get("wikiDataId"):
+            wiki_data.join()
         if movie.get("wikidata_id") and not wiki_data:
             movie.update(get_wikidata_data(movie.get("wikidata_id"), "movie"))
         elif wiki_data:
