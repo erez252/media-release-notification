@@ -9,6 +9,7 @@ from datetime import date, datetime, timezone, timedelta
 import threading
 from iso3166 import countries
 import re
+from concurrent.futures import ThreadPoolExecutor
 app = Flask(__name__)
 CORS(app)  # Handles CORS preflight headers automatically
 import urllib.parse
@@ -2283,9 +2284,10 @@ def get_movie_info():
             return jsonify({"error": "misiing id"})
 
         wiki_data = {}
+        executor = ThreadPoolExecutor(max_workers=1)
+        future = None
         if body.get("wikiDataId"):
-            wiki_data = threading.Thread(target=get_wikidata_data, args=(body.get("wikiDataId"), "movie"))
-            wiki_data.start()
+            future = executor.submit(get_wikidata_data, body.get("wikiDataId"), "movie")
             
         response = requests.get(f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&append_to_response=keywords,release_dates,videos,credits,external_ids")
         data = response.json()
@@ -2432,10 +2434,13 @@ def get_movie_info():
                                 break
         if age_rating:
             movie["age_rating"] = age_rating
-        if body.get("wikiDataId"):
-            wiki_data.join()
-        if movie.get("wikidata_id") and not wiki_data:
+        
+        if future:
+            wiki_data = future.result()
+        elif movie.get("wikidata_id"):
             wiki_data = get_wikidata_data(movie.get("wikidata_id"), "movie")
+        else:
+            wiki_data = None
         if wiki_data:
             movie.update(wiki_data)
 
@@ -2456,9 +2461,10 @@ def get_tv_info():
             return jsonify({"error": "misiing id"})
 
         wiki_data = {}
+        executor = ThreadPoolExecutor(max_workers=1)
+        future = None
         if body.get("wikiDataId"):
-            wiki_data = threading.Thread(target=get_wikidata_data, args=(body.get("wikiDataId"), "tv"))
-            wiki_data.start()
+            future = executor.submit(get_wikidata_data, body.get("wikiDataId"), "tv")
         
         response = requests.get(f"https://api.themoviedb.org/3/tv/{tv_id}?api_key={TMDB_API_KEY}&append_to_response=keywords,release_dates,videos,credits,content_ratings,external_ids")
         data = response.json()
@@ -2618,12 +2624,15 @@ def get_tv_info():
         if age_rating:
             show["age_rating"] = age_rating
 
-        if body.get("wikiDataId"):
-            wiki_data.join()
-        if show.get("wikidata_id") and not wiki_data:
+        if future:
+            wiki_data = future.result()
+        elif show.get("wikidata_id"):
             wiki_data = get_wikidata_data(show.get("wikidata_id"), "tv")
+        else:
+            wiki_data = None
         if wiki_data:
             show.update(wiki_data)
+            
         return jsonify(show), 200
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
