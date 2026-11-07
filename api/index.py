@@ -3624,8 +3624,81 @@ def seb_check():
 def get_news():
     response = requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["GET", "news"])
     result_str = response.json().get('result')
-    data = json.loads(result_str) if result_str else []
+    data = json.loads(result_str) if result_str else {}
     return data
+
+@app.route('/api/news/get', methods=['POST'])
+def retern_news():
+    try:
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        try:
+            query = request.args.get('query', '')
+            source_filter = request.args.get('source_filter', '')
+            limit = int(request.args.get('limit', "30"))
+            offset = int(request.args.get('offset', "0"))
+            
+            if limit <= 0:
+                raise ValueError
+            if offset < 0:
+                raise ValueError
+        except ValueError:
+            return jsonify({"success": False, "message": "incorrect args"}), 400
+        
+        data = get_news()
+        articles = data.get("articles") or []
+        sources = data.get("sources") or []
+        last_updated = data.get("last_updated")
+        total = data.get("total")
+        
+        if source_filter:
+            source_filter = source_filter.split(",")
+            source_filter = [x.strip() for x in source_filter]
+
+        filtered_articles = []
+        if query or source_filter:
+            for article in articles:
+                if query and not source_filter:
+                    if (article.get("title") and query.lower() in article.get("title").lower()) or (article.get("summary") and query.lower() in article.get("summary").lower()):
+                        filtered_articles.append(article)
+                if source_filter and not query:
+                    if article.get("source") in source_filter:
+                        filtered_articles.append(article)
+                if source_filter and query:
+                    if (article.get("source") in source_filter) and ((article.get("title") and query.lower() in article.get("title").lower()) or (article.get("summary") and query.lower() in article.get("summary").lower())):
+                        filtered_articles.append(article)
+        
+        
+        else:           
+            filtered_articles = articles
+        
+        paginated_articles = filtered_articles[offset:offset + limit]
+        
+        filtered_total = len(filtered_articles)
+        has_more = offset + limit < filtered_total
+        
+        final_data = {
+            "articles": paginated_articles,
+            "sources": sources,
+            "last_updated": last_updated,
+            "total": total,
+            "filtered_total": filtered_total,
+            "has_more": has_more,
+            "query": query or None,
+            "source_filter": source_filter or None,
+            "limit": limit,
+            "offset": offset,
+        }
+        
+        return jsonify(final_data), 200
+        
+        
+        
+    except Exception as e:
+        return jsonify({"success": False, "message": f"{e}"}), 500
+    
 
 @app.route('/api/news/make', methods=['POST'])
 def make_news():
