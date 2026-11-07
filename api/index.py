@@ -3970,6 +3970,7 @@ def make_news():
             for item in feed:
                 post = item.get("post")
                 images = (post.get('embed') or {}).get('images')
+                image = None
                 if images:
                     image = (images[0] or {}).get('thumb')
                 main_url = post.get("uri") or ""
