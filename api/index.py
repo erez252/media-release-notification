@@ -4007,7 +4007,7 @@ def make_news():
                     "published": createdAt,
                     "summary": summary,
                     "id": id,
-                    "thumbnail": image,
+                    "thumbnail": image or None,
                     "source": "DiscussingFilm (Bluesky)",
                     "source_url": "https://discussingfilm.net"
                 })
