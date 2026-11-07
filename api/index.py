@@ -10,6 +10,11 @@ import threading
 from iso3166 import countries
 import re
 from concurrent.futures import ThreadPoolExecutor
+
+import feedparser
+from bs4 import BeautifulSoup
+from email.utils import parsedate_to_datetime
+
 app = Flask(__name__)
 CORS(app)  # Handles CORS preflight headers automatically
 import urllib.parse
@@ -25,6 +30,7 @@ IGDB_CLIENT_ID = os.environ.get('IGDB_CLIENT_ID')
 IGDB_ACCESS_TOKEN = os.environ.get('IGDB_ACCESS_TOKEN')
 STREMIO_AUTHKEY = os.environ.get('STREMIO_AUTHKEY')
 NTFY_SUB_CHANNEL = os.environ.get('NTFY_SUB_CHANNEL')
+WIKI_USER_AGENT = os.environ.get('WIKI_USER_AGENT')
 
 headers = {"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"}
 qstash_header= {"Authorization": f"Bearer {QSTASH_TOKEN}"}
@@ -1195,7 +1201,7 @@ def get_wikidata_data(wiki_id, media_type):
         """
 
     wiki_headers = {
-      "User-Agent": os.environ.get('WIKI_USER_AGENT'),
+      "User-Agent": WIKI_USER_AGENT,
       "Accept": "application/sparql-results+json",
     }
     
@@ -3615,7 +3621,376 @@ def seb_check():
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
 
+def get_news():
+    response = requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["GET", "news"])
+    result_str = response.json().get('result')
+    data = json.loads(result_str) if result_str else []
+    return data
 
+@app.route('/api/news/make', methods=['POST'])
+def make_news():
+    try:
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        ign_data = []
+        
+        def get_ign_data():
+            try:
+                feed = feedparser.parse('https://feeds.feedburner.com/ign/all')
+                for article in feed.entries:
+                    thumbnail = None
+                    media_thumbnail = article.get("media_thumbnail")
+                    if len(media_thumbnail) >= 1:
+                        thumbnail = (media_thumbnail[0] or {}).get('url')
+
+                    published = None
+                    try:
+                        dt_object = datetime.strptime(article.get("published"), "%a, %d %b %Y %H:%M:%S %z")
+                        published = dt_object.isoformat()
+                    except (TypeError, ValueError):
+                        published = None
+
+                    ign_data.append({
+                        "title": article.get("title"),
+                        "url": article.get("link"),
+                        "published": published,
+                        "summary": article.get("summary"),
+                        "id": article.get('id'),
+                        "thumbnail": thumbnail,
+                        "source": "IGN",
+                        "source_url": "https://ign.com/"
+                    })
+            except:
+                return
+
+        discussingfilm_data = []
+        def get_discussingfilm_data():
+            try:
+                feed = feedparser.parse('https://discussingfilm.net/feed/')
+                for article in feed.entries:
+                    thumbnail = None
+                    media_thumbnail = article.get("media_thumbnail")
+                    if len(media_thumbnail) >= 1:
+                        thumbnail = (media_thumbnail[0] or {}).get('url')       
+                    published = None
+                    try:
+                        dt_object = datetime.strptime(article.get("published"), "%a, %d %b %Y %H:%M:%S %z")
+                        published = dt_object.isoformat()
+                    except (TypeError, ValueError):
+                        published = None
+                    clean_description = None
+                    try:
+                        description = (article.get("summary"))
+                        soup = BeautifulSoup(description, "html.parser")
+                        clean_description = soup.get_text(separator="\n", strip=True)
+                        clean_description = re.sub(r"\s+", " ", clean_description).strip()
+                    except:
+                        clean_description = None
+                    if "’ Review" not in article.get("title"):
+                        discussingfilm_data.append({
+                            "title": article.get("title"),
+                            "url": article.get("link"),
+                            "published": published,
+                            "summary": clean_description,
+                            'id': article.get('id'),
+                            "thumbnail": thumbnail,
+                            "source": "DiscussingFilm",
+                            "source_url": "https://discussingfilm.net"
+                        })
+            except:
+                return
+
+        variety_data = []
+        def get_variety_data():
+            try:
+                response = requests.get("https://variety.com/feed/")
+                feed = feedparser.parse(response.content)
+                for article in feed.entries:
+                    thumbnail = None
+                    media_thumbnail = article.get("media_thumbnail")
+                    if len(media_thumbnail) >= 1:
+                        thumbnail = (media_thumbnail[0] or {}).get('url')       
+                    published = None
+                    try:
+                        dt_object = datetime.strptime(article.get("published"), "%a, %d %b %Y %H:%M:%S %z")
+                        published = dt_object.isoformat()
+                    except (TypeError, ValueError):
+                        published = None
+                    clean_description = None
+                    try:
+                        description = (article.get("summary"))
+                        soup = BeautifulSoup(description, "html.parser")
+                        clean_description = soup.get_text(separator="\n", strip=True)
+                        clean_description = re.sub(r"\s+", " ", clean_description).strip()
+                    except:
+                        clean_description = None
+                    variety_data.append({
+                        "title": article.get("title"),
+                        "url": article.get("link"),
+                        "published": published,
+                        "summary": clean_description,
+                        'id': article.get('id'),
+                        "thumbnail": thumbnail,
+                        "source": "Variety",
+                        "source_url": "https://variety.com"
+                    })
+            except:
+                return
+
+        deadline_data = []
+        def get_deadline_data():
+            try:
+                response = requests.get("https://deadline.com/feed/")
+                feed = feedparser.parse(response.content)
+                for article in feed.entries:
+                    thumbnail = None
+                    media_thumbnail = article.get("media_thumbnail")
+                    if len(media_thumbnail) >= 1:
+                        thumbnail = (media_thumbnail[0] or {}).get('url')       
+                    published = None
+                    try:
+                        dt_object = datetime.strptime(article.get("published"), "%a, %d %b %Y %H:%M:%S %z")
+                        published = dt_object.isoformat()
+                    except (TypeError, ValueError):
+                        published = None
+                    clean_description = ""
+                    try:
+                        description = (article.get("summary"))
+                        soup = BeautifulSoup(description, "html.parser")
+                        clean_description = soup.get_text(separator="\n", strip=True)
+                        clean_description = re.sub(r"\s+", " ", clean_description).strip()
+                    except:
+                        clean_description = None
+                    deadline_data.append({
+                        "title": article.get("title"),
+                        "url": article.get("link"),
+                        "published": published,
+                        "summary": clean_description,
+                        'id': article.get('id'),
+                        "thumbnail": thumbnail,
+                        "source": "Deadline",
+                        "source_url": "https://deadline.com"
+                    })
+            except:
+                return
+
+        hollywoodreporter_data = []
+        def get_hollywoodreporter_data():
+            try:
+                response = requests.get("https://hollywoodreporter.com/feed/")
+                feed = feedparser.parse(response.content)
+                for article in feed.entries:
+                    thumbnail = None
+                    media_thumbnail = article.get("media_thumbnail")
+                    if media_thumbnail and len(media_thumbnail) >= 1:
+                        thumbnail = (media_thumbnail[0] or {}).get('url')       
+                    published = None
+                    try:
+                        dt_object = datetime.strptime(article.get("published"), "%a, %d %b %Y %H:%M:%S %z")
+                        published = dt_object.isoformat()
+                    except (TypeError, ValueError):
+                        published = None
+                    clean_description = None
+                    try:
+                        description = (article.get("summary"))
+                        soup = BeautifulSoup(description, "html.parser")
+                        clean_description = soup.get_text(separator="\n", strip=True)
+                        clean_description = re.sub(r"\s+", " ", clean_description).strip()
+                    except:
+                        clean_description = None
+
+                    hollywoodreporter_data.append({
+                        "title": article.get("title"),
+                        "url": article.get("link"),
+                        "published": published,
+                        "summary": clean_description,
+                        'id': article.get('id'),
+                        "thumbnail": thumbnail,
+                        "source": "The Hollywood Reporter",
+                        "source_url": "https://hollywoodreporter.com"
+                    })
+            except Exception as e:
+                return
+
+        vgc_data = []
+        def get_vgc_data():
+            try:
+                response = requests.get("https://www.videogameschronicle.com/category/news/feed/")
+                feed = feedparser.parse(response.content)
+                for article in feed.entries:
+                    thumbnail = None   
+                    published = None
+                    try:
+                        dt_object = datetime.strptime(article.get("published"), "%a, %d %b %Y %H:%M:%S %z")
+                        published = dt_object.isoformat()
+                    except (TypeError, ValueError):
+                        published = None
+                    clean_description = None
+                    try:
+                        description = (article.get("summary"))
+                        soup = BeautifulSoup(description, "html.parser")
+                        image = soup.find("img")
+                        thumbnail = image.get("src") if image else None
+                        clean_description = soup.get_text(separator="\n", strip=True)
+                        clean_description = re.sub(r"\s+", " ", clean_description).strip()
+                    except:
+                        clean_description = None
+
+                    vgc_data.append({
+                        "title": article.get("title"),
+                        "url": article.get("link"),
+                        "published": published,
+                        "summary": clean_description,
+                        'id': article.get('id'),
+                        "thumbnail": thumbnail,
+                        "source": "Video Games Chronicle",
+                        "source_url": "https://www.videogameschronicle.com"
+                    })
+            except Exception as e:
+                return
+
+        gamedeveloper_data = []
+        def get_gamedeveloper_data():
+            try:
+                response = requests.get("https://www.gamedeveloper.com/rss.xml")
+                feed = feedparser.parse(response.content)
+                for article in feed.entries[:20]:
+                    thumbnail = None   
+                    media_thumbnail = article.get("media_thumbnail")
+                    if len(media_thumbnail) >= 1:
+                        thumbnail = (media_thumbnail[0] or {}).get('url')
+                    published = None
+                    try:
+                        dt_object = parsedate_to_datetime(article.get("published"))
+                        published = dt_object.isoformat()
+                    except (TypeError, ValueError):
+                        published = None
+                    clean_description = None
+                    try:
+                        description = (article.get("summary"))
+                        soup = BeautifulSoup(description, "html.parser")
+                        clean_description = soup.get_text(separator="\n", strip=True)
+                        clean_description = re.sub(r"\s+", " ", clean_description).strip()
+                    except:
+                        clean_description = None
+
+                    gamedeveloper_data.append({
+                        "title": article.get("title"),
+                        "url": article.get("link"),
+                        "published": published,
+                        "summary": clean_description,
+                        'id': article.get('id'),
+                        "thumbnail": thumbnail,
+                        "source": "Game Developer",
+                        "source_url": "https://www.gamedeveloper.com"
+                    })
+            except Exception as e:
+                return
+
+        discussingfilm_bluesky_data = []
+        def get_discussingfilm_bluesky_data():
+            response = requests.get("https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=discussingfilm.net")
+            data = response.json()
+            feed = data.get("feed")
+            for item in feed[0:1]:
+                post = item.get("post")
+                images = (post.get('embed') or {}).get('images')
+                if images:
+                    image = (images[0] or {}).get('thumb')
+                main_url = post.get("uri") or ""
+                _, _, id = main_url.rpartition("/")
+                main_url = f"https://bsky.app/profile/discussingfilm.net/post/{id}"
+                main = post.get('record') or {}
+                createdAt = main.get("createdAt")
+                try:
+                    createdAt = datetime.fromisoformat(createdAt).isoformat()
+                except:
+                    createdAt = main.get("createdAt")  
+                title = main.get('text')
+                facets = main.get('facets') or []
+                title_bytes = title.encode("utf-8")
+                for facet in facets:
+                    features = facet.get('features') or []
+                    for feature in features:
+                        if feature.get('$type') == 'app.bsky.richtext.facet#link':
+                            full_url = feature.get('uri')
+                            index = facet.get("index") or {}
+                            byte_start = index.get('byteStart')
+                            byte_end = index.get('byteEnd')
+                            start = len(title_bytes[:byte_start].decode("utf-8"))
+                            end = len(title_bytes[:byte_end].decode("utf-8"))
+                            title = title[:start] + full_url + title[end:]
+                title, _, summary = title.partition("\n")
+                if summary:
+                    summary = re.sub(r"\s+", " ", summary).strip()
+                if title:
+                    title = re.sub(r"\s+", " ", title)
+                discussingfilm_bluesky_data.append({
+                    "title": title,
+                    "url": main_url,
+                    "published": createdAt,
+                    "summary": summary,
+                    "id": id,
+                    "thumbnail": image,
+                    "source": "DiscussingFilm (Bluesky)",
+                    "source_url": "https://discussingfilm.net"
+                })
+
+
+
+        t1 = threading.Thread(target=get_ign_data)
+        t2 = threading.Thread(target=get_discussingfilm_data)
+        t3 = threading.Thread(target=get_variety_data)
+        t4 = threading.Thread(target=get_deadline_data)
+        t5 = threading.Thread(target=get_hollywoodreporter_data)
+        t6 = threading.Thread(target=get_vgc_data)
+        t7 = threading.Thread(target=get_gamedeveloper_data)
+        t8 = threading.Thread(target=get_discussingfilm_bluesky_data)
+
+        t1.start()
+        t2.start()
+        t3.start()
+        t4.start()
+        t5.start()
+        t6.start()
+        t7.start()
+        t8.start()
+
+        t1.join()
+        t2.join()
+        t3.join()
+        t4.join()
+        t5.join()
+        t6.join()
+        t7.join()
+        t8.join()
+
+        cutoff = 5
+        new_articles = ign_data + discussingfilm_data + variety_data + deadline_data + hollywoodreporter_data + vgc_data + gamedeveloper_data + discussingfilm_bluesky_data  
+        old_articles = get_news() or {}
+        correct_date = datetime.now(timezone.utc).date()
+        cutoff_days_ago = correct_date - timedelta(days=cutoff)
+        articles = []
+        sources = []
+        for article in new_articles + old_articles.get("articles"):
+            if not (article in articles) and article.get('published') and datetime.fromisoformat(article.get('published')).date() >= cutoff_days_ago:
+                articles.append(article)
+                if article.get('source') not in sources:
+                    sources.append(article.get('source'))
+        articles.sort(key=lambda item: item.get("published"), reverse=True)
+        data = {
+            "articles": articles,
+            "total": len(articles),
+            "last_updated": datetime.now(timezone.utc).isoformat(), 
+            "sources": sources
+        }
+        requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["SET", "news", json.dumps(data)])
+        
+        return jsonify({"success": True, "message": "Make news run successfully"}), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": f"{e}"}), 500
 
 
 # def game_checker_old():
