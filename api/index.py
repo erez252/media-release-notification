@@ -3894,7 +3894,7 @@ def make_news():
             response = requests.get("https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=discussingfilm.net")
             data = response.json()
             feed = data.get("feed")
-            for item in feed[0:1]:
+            for item in feed:
                 post = item.get("post")
                 images = (post.get('embed') or {}).get('images')
                 if images:
