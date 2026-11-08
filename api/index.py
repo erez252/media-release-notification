@@ -128,7 +128,7 @@ def send_movie_notification(item, time):
           "content": "🎥 **New Movie Digital Release!**",
           "embeds": [
             {
-              "title": item.get('title'),
+              "title": f"[{item.get('title')}](https://erez252.github.io/media-release-notification-website/#movie/{item.get('id')})",
               "description": f"Now available to stream.",
               "color": 10038562,
               "fields": [
@@ -1597,8 +1597,7 @@ def send_tv_notification():
                         what_new = "Show"
                     
 
-            if episode.get("name") and episode.get("name") != "TBA":
-
+            if episode.get("name") and (episode.get("name") != "TBA" or episode.get("name") != "tbd"):
                 discord_msg = {
                   "content": f"🎬 **New {what_new} Released!**",
                   "embeds": [
