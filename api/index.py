@@ -128,7 +128,8 @@ def send_movie_notification(item, time):
           "content": "🎥 **New Movie Digital Release!**",
           "embeds": [
             {
-              "title": f"[{item.get('title')}](https://erez252.github.io/media-release-notification-website/#movie/{item.get('id')})",
+              "title": f"{item.get('title')}",
+              "url": f"https://erez252.github.io/media-release-notification-website/#movie/{item.get('id')}",
               "description": f"Now available to stream.",
               "color": 10038562,
               "fields": [
@@ -314,6 +315,7 @@ def send_game_notification(body):
                 "embeds": [
                   {
                     "title": body.get("title"),
+                    "url": f"https://erez252.github.io/media-release-notification-website/#game/{body.get("id")}",
                     "description": "Now available to play.",
                     "color": 15418782,
                     "fields": [
@@ -354,6 +356,7 @@ def send_game_notification(body):
                 "embeds": [
                   {
                     "title": body.get("title"),
+                    "url": f"https://erez252.github.io/media-release-notification-website/#game/{body.get("id")}",
                     "description": "New downloadable content is now available.",
                     "color": 5814783,
                     "fields": [
