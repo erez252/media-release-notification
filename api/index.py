@@ -1597,7 +1597,7 @@ def send_tv_notification():
                         what_new = "Show"
                     
 
-            if episode.get("name") and (episode.get("name") != "TBA" or episode.get("name") != "tbd"):
+            if episode.get("name") and episode.get("name") != "TBA" and episode.get("name") != "tbd":
                 discord_msg = {
                   "content": f"🎬 **New {what_new} Released!**",
                   "embeds": [
