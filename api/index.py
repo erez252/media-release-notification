@@ -1602,7 +1602,7 @@ def send_tv_notification():
                   "content": f"🎬 **New {what_new} Released!**",
                   "embeds": [
                     {
-                      "title": episode.get("show_name"),
+                      "title": f"[{episode.get("show_name")}](https://erez252.github.io/media-release-notification-website/#tv/{show_id})",
                       "description": "A new episode is now streaming.",
                       "color": 15844367,
                       "fields": [
