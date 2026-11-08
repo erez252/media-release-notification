@@ -1727,7 +1727,7 @@ def send_tv_notification():
               "content": f"🍿 **New {what_new} Available!**",
               "embeds": [
                 {
-                  "title": f"{first_ep.get("show_name")}",
+                  "title": f"[{first_ep.get("show_name")}](https://erez252.github.io/media-release-notification-website/#tv/{show_id})",
                   "description": f"{episodes_count} new episodes are now available to watch.",
                   "color": 15844367,
                   "fields": [
