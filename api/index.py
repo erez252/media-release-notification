@@ -1602,7 +1602,8 @@ def send_tv_notification():
                   "content": f"🎬 **New {what_new} Released!**",
                   "embeds": [
                     {
-                      "title": f"[{episode.get("show_name")}](https://erez252.github.io/media-release-notification-website/#tv/{show_id})",
+                      "title": episode.get("show_name"),
+                      "url": f"https://erez252.github.io/media-release-notification-website/#tv/{show_id}",
                       "description": "A new episode is now streaming.",
                       "color": 15844367,
                       "fields": [
@@ -1638,7 +1639,8 @@ def send_tv_notification():
                   "content": f"🍿 **New {what_new} Available!**",
                   "embeds": [
                     {
-                      "title": f"[{episode.get("show_name")}](https://erez252.github.io/media-release-notification-website/#tv/{show_id})",
+                      "title": episode.get("show_name"),
+                      "url": f"https://erez252.github.io/media-release-notification-website/#tv/{show_id}",
                       "description": "A new episode is now available to watch.",
                       "color": 15844367,
                       "fields": [
@@ -1727,7 +1729,8 @@ def send_tv_notification():
               "content": f"🍿 **New {what_new} Available!**",
               "embeds": [
                 {
-                  "title": f"[{first_ep.get("show_name")}](https://erez252.github.io/media-release-notification-website/#tv/{show_id})",
+                  "title": f"{first_ep.get("show_name")}",
+                  "url": f"https://erez252.github.io/media-release-notification-website/#tv/{show_id}",
                   "description": f"{episodes_count} new episodes are now available to watch.",
                   "color": 15844367,
                   "fields": [
