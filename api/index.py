@@ -3783,6 +3783,7 @@ def make_news():
         variety_data = []
         def get_variety_data():
             try:
+                return
                 response = requests.get("https://variety.com/feed/")
                 feed = feedparser.parse(response.content)
                 for article in feed.entries:
@@ -3819,6 +3820,7 @@ def make_news():
 
         deadline_data = []
         def get_deadline_data():
+            return
             try:
                 response = requests.get("https://deadline.com/feed/")
                 feed = feedparser.parse(response.content)
@@ -4017,8 +4019,80 @@ def make_news():
                     "source_url": "https://discussingfilm.net"
                 })
 
+        whentostream_data = []
+        def get_whentostream_data() -> None:
+            try:
+                response = requests.get("https://whentostream.com/feed/")
+                feed = feedparser.parse(response.content)
+                for article in feed.entries:
+                    thumbnail = None   
+                    published = None
+                    try:
+                        dt_object = parsedate_to_datetime(article.get("published"))
+                        published = dt_object.isoformat()
+                    except (TypeError, ValueError):
+                        published = None
+                    clean_description = None
+                    try:
+                        description = (article.get("summary"))
+                        soup = BeautifulSoup(description, "html.parser")
+                        clean_description = soup.get_text(separator="\n", strip=True)
+                        clean_description = re.sub(r"\s+", " ", clean_description).strip()
+                    except:
+                        clean_description = None
 
+                    whentostream_data.append({
+                        "title": article.get("title"),
+                        "url": article.get("link"),
+                        "published": published,
+                        "summary": clean_description,
+                        'id': article.get('id'),
+                        "thumbnail": thumbnail,
+                        "source": "When To Stream",
+                        "source_url": "https://whentostream.com/"
+                    })
+            except Exception as e:
+                return
+        
+        tvline_data = []
+        def get_tvline_data() -> None:
+            try:
+                response = requests.get("https://www.tvline.com/feed/")
+                feed = feedparser.parse(response.content)
+                print(feed)
+                for article in feed.entries:
+                    thumbnail = None   
+                    media_thumbnail = article.get('media_thumbnail') or []
+                    if media_thumbnail:
+                        thumbnail = (media_thumbnail[0] or {}).get('url')
+                    published = None
+                    try:
+                        dt_object = parsedate_to_datetime(article.get("published"))
+                        published = dt_object.isoformat()
+                    except (TypeError, ValueError):
+                        published = None
+                    clean_description = None
+                    try:
+                        description = (article.get("summary"))
+                        soup = BeautifulSoup(description, "html.parser")
+                        clean_description = soup.get_text(separator="\n", strip=True)
+                        clean_description = re.sub(r"\s+", " ", clean_description).strip()
+                    except:
+                        clean_description = None
 
+                    tvline_data.append({
+                        "title": article.get("title"),
+                        "url": article.get("link"),
+                        "published": published,
+                        "summary": clean_description,
+                        'id': article.get('id'),
+                        "thumbnail": thumbnail,
+                        "source": "TVLine",
+                        "source_url": "https://www.tvline.com/"
+                    })
+            except Exception as e:
+                return
+            
         t1 = threading.Thread(target=get_ign_data)
         t2 = threading.Thread(target=get_discussingfilm_data)
         t3 = threading.Thread(target=get_variety_data)
@@ -4027,6 +4101,8 @@ def make_news():
         t6 = threading.Thread(target=get_vgc_data)
         t7 = threading.Thread(target=get_gamedeveloper_data)
         t8 = threading.Thread(target=get_discussingfilm_bluesky_data)
+        t9 = threading.Thread(target=get_whentostream_data)
+        t10 = threading.Thread(target=get_tvline_data)
 
         t1.start()
         t2.start()
@@ -4036,6 +4112,8 @@ def make_news():
         t6.start()
         t7.start()
         t8.start()
+        t9.start()
+        t10.start()
 
         t1.join()
         t2.join()
@@ -4045,9 +4123,11 @@ def make_news():
         t6.join()
         t7.join()
         t8.join()
+        t9.join()
+        t10.join()
 
         cutoff = 5
-        new_articles = ign_data + discussingfilm_data + variety_data + deadline_data + hollywoodreporter_data + vgc_data + gamedeveloper_data + discussingfilm_bluesky_data  
+        new_articles = ign_data + discussingfilm_data + variety_data + deadline_data + hollywoodreporter_data + vgc_data + gamedeveloper_data + discussingfilm_bluesky_data + whentostream_data + tvline_data 
         old_articles = get_news() or {}
         correct_date = datetime.now(timezone.utc).date()
         cutoff_days_ago = correct_date - timedelta(days=cutoff)
@@ -4066,7 +4146,7 @@ def make_news():
             "sources": sources
         }
         requests.post(UPSTASH_REDIS_REST_URL, headers=headers, json=["SET", "news", json.dumps(data)])
-        
+
         return jsonify({"success": True, "message": "Make news run successfully"}), 200
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
