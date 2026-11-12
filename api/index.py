@@ -3858,6 +3858,7 @@ def make_news():
 
         hollywoodreporter_data = []
         def get_hollywoodreporter_data():
+            return
             try:
                 response = requests.get("https://hollywoodreporter.com/feed/")
                 feed = feedparser.parse(response.content)
@@ -4133,9 +4134,12 @@ def make_news():
         cutoff_days_ago = correct_date - timedelta(days=cutoff)
         articles = []
         sources = []
-        for article in new_articles + old_articles.get("articles"):
-            if not (article in articles) and article.get('published') and datetime.fromisoformat(article.get('published')).date() >= cutoff_days_ago:
+        seen_ids = set()
+        for article in new_articles + old_articles.get("articles") or []:
+            article_id = article.get("id")
+            if article_id and article_id not in seen_ids and article.get('published') and datetime.fromisoformat(article.get('published')).date() >= cutoff_days_ago:
                 articles.append(article)
+                seen_ids.add(article_id)
                 if article.get('source') not in sources:
                     sources.append(article.get('source'))
         articles.sort(key=lambda item: item.get("published"), reverse=True)
