@@ -1559,16 +1559,16 @@ def check_movie_v2():
             return jsonify({"success": True, "message": "check_movie checked successfully"}), 200
             
         date_iso = datetime.now(timezone.utc).date().isoformat()
-
         params = {
-        "include_adult": "false",
-        "include_video": "false",
-        "page": 1,
-        "release_date.gte": date_iso,
-        "release_date.lte": date_iso,
-        "with_release_type": "4|5|6",
-        "sort_by": "popularity.desc",
-        "api_key": TMDB_API_KEY
+            "include_adult": "false",
+            "include_video": "false",
+            "page": 1,
+            "release_date.gte": date_iso,
+            "release_date.lte": date_iso,
+            "with_release_type": "4|5|6",
+            "region": "US",
+            "sort_by": "popularity.desc",
+            "api_key": TMDB_API_KEY
         }
 
         all_movies = []
