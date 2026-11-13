@@ -411,13 +411,15 @@ def send_game_to_qstash(delay, body):
         
 def get_data_for_add_item(media_id, media_type):
 
-        movie_response = requests.get(f"https://api.themoviedb.org/3/{media_type}/{media_id}?api_key={TMDB_API_KEY}&append_to_response=external_ids,alternative_titles")
+        movie_response = requests.get(f"https://api.themoviedb.org/3/{media_type}/{media_id}?api_key={TMDB_API_KEY}&append_to_response=release_dates,external_ids,alternative_titles")
         
         
-        digital = check_if_digital(media_id)
         movie_data = movie_response.json()
         raw_movie_data = movie_response.json()
+        
 
+                    
+                    
         external_ids = raw_movie_data.get("external_ids")
         movie_data = {
             "id": movie_data.get("id"),
@@ -429,9 +431,10 @@ def get_data_for_add_item(media_id, media_type):
             "popularity": movie_data.get("popularity"),
             "vote_average": movie_data.get("vote_average"),
             "genres": movie_data.get("genres"),
+            "origin_country": movie_data.get("origin_country") or [],
             "media_type": "movie" if movie_data.get("title") else "tv",
             "last_notification": None,
-            "digital": digital,
+            "digital": None,
             "imdb_id": movie_data.get("imdb_id") or None,
             "tvdb_id": None,
             "wikidata_id": external_ids.get("wikidata_id") or None,
@@ -440,6 +443,46 @@ def get_data_for_add_item(media_id, media_type):
         }
         if media_type == "movie":
             movie_data["release_date"] = raw_movie_data.get("release_date", None)
+            digital = False
+            release_dates = (raw_movie_data.get('release_dates') or {}).get('results')
+            if release_dates:
+                all_release_dates = []
+                for country in release_dates:
+                    iso_3166_1 = country.get('iso_3166_1')
+                    if iso_3166_1 in raw_movie_data.get('origin_country', []) or iso_3166_1 == "US":
+                        for date_obj in country.get('release_dates', []):
+                            if date_obj.get('release_date'):
+                                all_release_dates.append(date_obj)
+                all_release_dates.sort(key=lambda _: _.get('release_date'))
+                first_theatrical_release = ""
+                first_digital_release = ""
+                for release_date in all_release_dates:
+                    release_type = release_date.get('type')
+                    if release_type is None:
+                        continue
+                    if release_type <= 3 and not first_theatrical_release:
+                        first_theatrical_release = release_date.get('release_date')
+                    elif release_type > 3 and not first_digital_release:
+                        first_digital_release = release_date.get('release_date')
+                    if first_theatrical_release and first_digital_release:
+                        break
+                if first_theatrical_release:
+                    movie_data["theatrical_release"] = first_theatrical_release
+                if first_digital_release:
+                    movie_data["digital_release"] = first_digital_release
+                
+                if first_digital_release:
+                    try:
+                        now = datetime.now(timezone.utc)
+                        digital_release_date = datetime.fromisoformat(first_digital_release)
+                        if digital_release_date <= now:
+                            digital = True
+                    except (ValueError, TypeError):
+                        pass          
+            movie_data["digital"] = digital  
+            
+            
+            
         else:
             movie_data["first_air_date"] = raw_movie_data.get("first_air_date", None)
             movie_data["last_air_date"] = raw_movie_data.get("last_air_date", None)
@@ -1970,6 +2013,7 @@ def updater():
             item['genres'] = data.get('genres', "") or ""
             item['vote_average'] = data.get('vote_average', "") or 0
             item['popularity'] = data.get('popularity', "") or 0
+            item['origin_country'] = data.get("origin_country") or []
                 
             if item.get('release_date', "") !=  data.get('release_date', ""):
                 item['release_date'] = data.get('release_date', "")
@@ -1994,38 +2038,53 @@ def updater():
                 if item.get('media_type', "") == "movie":
                     release_dates = (data.get('release_dates') or {}).get('results')
                     if release_dates:
-                        if not item.get('digital'):
-                            for date in release_dates:
-                                date_obj = (date.get('release_dates')[0] or {})
-                                if date_obj.get("type") > 3:
-                                    release_date = datetime.fromisoformat(date_obj.get("release_date"))
-                                    if release_date < datetime.now(timezone.utc):
-                                        is_digital = True
-                                        item["digital"] = True
-                                        send_movie_notification(item, datetime.now(timezone.utc).isoformat())
-                                        break
+                        # if not item.get('digital'):
+                        #     for date in release_dates:
+                        #         date_obj = (date.get('release_dates')[0] or {})
+                        #         if date_obj.get("type") > 3:
+                        #             release_date = datetime.fromisoformat(date_obj.get("release_date"))
+                        #             if release_date < datetime.now(timezone.utc):
+                        #                 is_digital = True
+                        #                 item["digital"] = True
+                        #                 send_movie_notification(item, datetime.now(timezone.utc).isoformat())
+                        #                 break
                                 
                         all_release_dates = []
                         for country in release_dates:
-                            for date_obj in country.get('release_dates', []):
-                                if date_obj.get('release_date'):
-                                    all_release_dates.append(date_obj)
+                            iso_3166_1 = country.get('iso_3166_1')
+                            if iso_3166_1 in data.get('origin_country', []) or iso_3166_1 == "US":
+                                for date_obj in country.get('release_dates', []):
+                                    if date_obj.get('release_date'):
+                                        all_release_dates.append(date_obj)
                         all_release_dates.sort(key=lambda _: _.get('release_date'))
                         first_theatrical_release = ""
                         first_digital_release = ""
                         for release_date in all_release_dates:
-                            if release_date.get('type') <= 3:
+                            release_type = release_date.get('type')
+                            if release_type is None:
+                                continue
+                            if release_type <= 3 and not first_theatrical_release:
                                 first_theatrical_release = release_date.get('release_date')
-                                break
-                        for release_date in all_release_dates:
-                            if release_date.get('type') > 3:
+                            elif release_type > 3 and not first_digital_release:
                                 first_digital_release = release_date.get('release_date')
+                            if first_theatrical_release and first_digital_release:
                                 break
                         if first_theatrical_release:
                             item["theatrical_release"] = first_theatrical_release
                         if first_digital_release:
                             item["digital_release"] = first_digital_release
                         
+                        if not item.get('digital') and first_digital_release:
+                            try:
+                                now = datetime.now(timezone.utc)
+                                digital_release_date = datetime.fromisoformat(first_digital_release).date()
+                                if digital_release_date < now.date():
+                                   item["digital"] = True
+                                   send_movie_notification(item, now.isoformat())
+                                    
+                            except ValueError:
+                                pass
+                            
             except Exception:
                 continue
                  
