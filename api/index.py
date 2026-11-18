@@ -31,6 +31,7 @@ IGDB_ACCESS_TOKEN = os.environ.get('IGDB_ACCESS_TOKEN')
 STREMIO_AUTHKEY = os.environ.get('STREMIO_AUTHKEY')
 NTFY_SUB_CHANNEL = os.environ.get('NTFY_SUB_CHANNEL')
 WIKI_USER_AGENT = os.environ.get('WIKI_USER_AGENT')
+TRAKT_CLIENT_ID = os.environ.get('TRAKT_CLIENT_ID')
 
 headers = {"Authorization": f"Bearer {UPSTASH_REDIS_REST_TOKEN}"}
 qstash_header= {"Authorization": f"Bearer {QSTASH_TOKEN}"}
@@ -41,6 +42,13 @@ igdb_headers = {
 }
 stremio_headers = {
     "Content-Type": "application/json"
+}
+
+trakt_header= {
+    "Content-Type": "application/json",
+    "trakt-api-version": "2",
+    "trakt-api-key": TRAKT_CLIENT_ID,
+    "User-Agent": "Watchlist/1.0"
 }
 
 def is_authorized(body):
@@ -2924,72 +2932,121 @@ def make_calendar():
         calendar = []
         #tv calendar
         tv_calendar = []
+        
         def make_tv_calendar():
-            id_list = [item.get("tvmaze_id") for item in db_data if item.get("tvmaze_id")]
-            # name_list = [item.get("title") for item in db_data if item.get("tvmaze_id")]
-            name_list = []
-            for item in db_data:
-                if item.get("tvmaze_id"):
-                    # Add the main title
-                    if item.get("title"):
-                        name_list.append(item["title"])
-
-                    # Add all alternative titles
-                    alt_titles = item.get("alternative_titles") or []
-                    for alt in alt_titles:
-                        if alt.get("title"):
-                            name_list.append(alt["title"])
-            name_set = {normalize_title(t) for t in name_list}
+            id_list = [item.get("id") for item in db_data if item.get("media_type") == "tv"]
+            start_day = (datetime.now(timezone.utc) - timedelta(days=2)).date()
+            days = 32
+            all_episodes = []
             
-            response = requests.get("https://api.tvmaze.com/schedule/full")
-            data = response.json()
-            for show in data:
-                tv_show_info = (show.get("_embedded") or {}).get("show") or {}
-                tvmaze_id = tv_show_info.get("id")
-                tvmaze_show_name = tv_show_info.get("name", "")
-                if tvmaze_id in id_list or normalize_title(tvmaze_show_name) in name_set:
-                    db_item = next((item for item in db_data if is_show_match(item, tvmaze_id, tvmaze_show_name)), {})
-                    ep_type = "Regular"
-                    max_ep_number = max(e["number"] for e in data if ((e.get("_embedded") or {}).get("show") or {}).get("id") == tvmaze_id and e.get("season") == show.get("season"))
-                    if show["number"] == max_ep_number:
-                        ep_type = "Season Finale"
-                    if show.get("number") == 1:
-                        ep_type = "Season Premiere"
-                        if show.get("season") == 1:
-                            ep_type = "Series Premiere"
+            
+            for i in range(15):
+                current_start_day = start_day + timedelta(days=i * (days + 1))
+                try:
+                    response = requests.get(
+                        f"https://api.trakt.tv/calendars/all/shows/{current_start_day.isoformat()}/{days}?extended=full",
+                        headers=trakt_header
+                    )
+                    response.raise_for_status()
+                    episodes = response.json()
+                    all_episodes.extend(episodes)
+                except requests.exceptions.RequestException:
+                    time.sleep(0.2)
+                    
+            for episode in all_episodes:
+                show_tmdb_id = ((episode.get('show') or {}).get('ids') or {}).get('tmdb')
+                if show_tmdb_id and show_tmdb_id in id_list:
+                    db_item = next(item for item in db_data if item.get("id") == show_tmdb_id)
+                    if db_item:
+                        airstamp = ""
+                        try:
+                            airstamp = datetime.fromisoformat(episode.get("first_aired")).isoformat()
+                        except:
+                            airstamp = ""
+                        if airstamp:
+                            episode_type = (episode.get('episode') or {}).get('episode_type') or None
+                            if episode_type:
+                                episode_type = episode_type.split("_")
+                                episode_type = " ".join(episode_type)
+                            tv_calendar.append({
+                                "id": show_tmdb_id,
+                                "tvmaze_id": db_item.get("tvmaze_id"),
+                                "poster_path": db_item.get("poster_path"),
+                                "title": db_item.get("title"),
+                                "media_type": "tv",
+                                'season': (episode.get('episode') or {}).get('season'),
+                                'number': (episode.get('episode') or {}).get('number'),
+                                'airstamp': airstamp,
+                                'runtime': (episode.get('episode') or {}).get('runtime'),
+                                'name': (episode.get('episode') or {}).get('title'),
+                                'url': None,
+                                'type': episode_type
+                            })
+        # def make_tv_calendar():
+        #     id_list = [item.get("tvmaze_id") for item in db_data if item.get("tvmaze_id")]
+        #     name_list = []
+        #     for item in db_data:
+        #         if item.get("tvmaze_id"):
+        #             # Add the main title
+        #             if item.get("title"):
+        #                 name_list.append(item["title"])
 
-                    airstamp = datetime.fromisoformat(show.get("airstamp") or f"{show.get('airdate')}T12:00:00+00:00")
-                    if not show.get("airtime"):
-                        airstamp = airstamp.replace(hour=7)
-                        show_path = show.get("show") or show.get("_embedded", {}).get("show", {})
-                        web_channel_obj = show_path.get("webChannel") or show.get("webChannel") or {}
-                        web_channel = web_channel_obj.get("name") if isinstance(web_channel_obj, dict) else None
-                        if web_channel:
-                            if web_channel == "Prime Video":
-                                airstamp = airstamp.replace(hour=0)
-                            elif web_channel == "Apple TV":
-                                airstamp = airstamp.replace(hour=1)
-                            elif web_channel == "Disney+":
-                                airstamp = (airstamp + timedelta(days=1)).replace(hour=1)
-                            elif web_channel == "Hulu":
-                                airstamp = airstamp.replace(hour=4)
-                            elif web_channel == "Peacock":
-                                airstamp = airstamp.replace(hour=9)
+        #             # Add all alternative titles
+        #             alt_titles = item.get("alternative_titles") or []
+        #             for alt in alt_titles:
+        #                 if alt.get("title"):
+        #                     name_list.append(alt["title"])
+        #     name_set = {normalize_title(t) for t in name_list}
+            
+        #     response = requests.get("https://api.tvmaze.com/schedule/full")
+        #     data = response.json()
+        #     for show in data:
+        #         tv_show_info = (show.get("_embedded") or {}).get("show") or {}
+        #         tvmaze_id = tv_show_info.get("id")
+        #         tvmaze_show_name = tv_show_info.get("name", "")
+        #         if tvmaze_id in id_list or normalize_title(tvmaze_show_name) in name_set:
+        #             db_item = next((item for item in db_data if is_show_match(item, tvmaze_id, tvmaze_show_name)), {})
+        #             ep_type = "Regular"
+        #             max_ep_number = max(e["number"] for e in data if ((e.get("_embedded") or {}).get("show") or {}).get("id") == tvmaze_id and e.get("season") == show.get("season"))
+        #             if show["number"] == max_ep_number:
+        #                 ep_type = "Season Finale"
+        #             if show.get("number") == 1:
+        #                 ep_type = "Season Premiere"
+        #                 if show.get("season") == 1:
+        #                     ep_type = "Series Premiere"
+
+        #             airstamp = datetime.fromisoformat(show.get("airstamp") or f"{show.get('airdate')}T12:00:00+00:00")
+        #             if not show.get("airtime"):
+        #                 airstamp = airstamp.replace(hour=7)
+        #                 show_path = show.get("show") or show.get("_embedded", {}).get("show", {})
+        #                 web_channel_obj = show_path.get("webChannel") or show.get("webChannel") or {}
+        #                 web_channel = web_channel_obj.get("name") if isinstance(web_channel_obj, dict) else None
+        #                 if web_channel:
+        #                     if web_channel == "Prime Video":
+        #                         airstamp = airstamp.replace(hour=0)
+        #                     elif web_channel == "Apple TV":
+        #                         airstamp = airstamp.replace(hour=1)
+        #                     elif web_channel == "Disney+":
+        #                         airstamp = (airstamp + timedelta(days=1)).replace(hour=1)
+        #                     elif web_channel == "Hulu":
+        #                         airstamp = airstamp.replace(hour=4)
+        #                     elif web_channel == "Peacock":
+        #                         airstamp = airstamp.replace(hour=9)
                         
-                    tv_calendar.append({
-                        "id": db_item.get("id"),
-                        "tvmaze_id": tvmaze_id,
-                        "poster_path": db_item.get("poster_path"),
-                        "title": db_item.get("title"),
-                        "media_type": "tv",
-                        'season': show.get("season"),
-                        'number': show.get("number"),
-                        'airstamp': airstamp.isoformat(),
-                        'runtime': show.get("runtime"),
-                        'name': show.get('name'),
-                        'url': show.get('url'),
-                        'type': ep_type
-                    })
+        #             tv_calendar.append({
+        #                 "id": db_item.get("id"),
+        #                 "tvmaze_id": tvmaze_id,
+        #                 "poster_path": db_item.get("poster_path"),
+        #                 "title": db_item.get("title"),
+        #                 "media_type": "tv",
+        #                 'season': show.get("season"),
+        #                 'number': show.get("number"),
+        #                 'airstamp': airstamp.isoformat(),
+        #                 'runtime': show.get("runtime"),
+        #                 'name': show.get('name'),
+        #                 'url': show.get('url'),
+        #                 'type': ep_type
+        #             })
                     
         movie_calendar = []
         def make_movie_calendar():
