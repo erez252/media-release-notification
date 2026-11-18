@@ -1869,114 +1869,143 @@ def check_tv_v2():
         if not auth_header == f"Bearer {os.environ.get('PASSWORD')}":
             return jsonify({'error': 'Unauthorized'}), 401
         db_data = get_db_data_v2()
-        id_list = [item.get("tvmaze_id") for item in db_data if (item.get("media_type") == "tv" and item.get("tvmaze_id", ""))]
-        date_iso = datetime.now(timezone.utc).date().isoformat()
-
-        response = requests.get(f"https://api.tvmaze.com/schedule/?date={date_iso}")
-        response_web = requests.get(f"https://api.tvmaze.com/schedule/web?date={date_iso}&country=")
-        data = response.json() or []
-        data_web = response_web.json() or [] 
         
-        existing_ids = {ep.get("id") for ep in data + data_web if ep.get("id") is not None}
-        response_full = requests.get("https://api.tvmaze.com/schedule/full")
-        data_full = response_full.json() or []
-        fallback_eps = []
-        for ep in data_full:
-            airstamp = ep.get("airstamp")
-            if airstamp and airstamp.startswith(date_iso) and ep.get("id") not in existing_ids:
-                fallback_eps.append(ep)
+        id_list = [item.get("id") for item in db_data if item.get("media_type") == "tv"]
         
-        new_ep = []
-        name_list = []
-        for item in db_data:
-            if item.get("tvmaze_id"):
-                # Add the main title
-                if item.get("title"):
-                    name_list.append(item["title"])
-                # Add all alternative titles
-                alt_titles = item.get("alternative_titles") or []
-                for alt in alt_titles:
-                    if alt.get("title"):
-                        name_list.append(alt["title"])
+        today = datetime.now(timezone.utc).date()
         
-        name_set = {normalize_title(t) for t in name_list}
-        if data or data_web or fallback_eps:
-            for ep in data + data_web + fallback_eps:
-                tv_show_info = (ep.get("show") or {}) or ((ep.get("_embedded") or {}).get("show") or {})
-                tvmaze_id = tv_show_info.get("id")
-                tvmaze_show_name = tv_show_info.get("name", "")
-                if tvmaze_id in id_list or normalize_title(tvmaze_show_name) in name_set:
-                    new_ep.append(ep)
-            if new_ep:
-                new_ep_formated = []
-                for ep in new_ep:
-                    tv_show_info = (ep.get("show") or {}) or ((ep.get("_embedded") or {}).get("show") or {})
-                    tvmaze_id = tv_show_info.get("id")
-                    tvmaze_show_name = tv_show_info.get("name", "")
-                    db_item = next((item for item in db_data if is_show_match(item, tvmaze_id, tvmaze_show_name)), {})
+        response = requests.get(
+            f"https://api.trakt.tv/calendars/all/shows/{today.isoformat()}/{0}?extended=full",
+            headers=trakt_header
+        )
+        data = response.json()
+        new_ep_formated = []
+        for episode in data:
+            show_tmdb_id = ((episode.get('show') or {}).get('ids') or {}).get('tmdb')
+            if show_tmdb_id and show_tmdb_id in id_list:
+                db_item = next(item for item in db_data if item.get("id") == show_tmdb_id)
+                airstamp = ""
+                try:
+                    airstamp = datetime.fromisoformat(episode.get("first_aired")).isoformat()
+                except:
+                    airstamp = ""
                     
-                    show_time_stemp = datetime.fromisoformat(ep.get("airstamp") or f"{ep.get('airdate')}T12:00:00+00:00")
-                    if not ep.get("airtime"):
-                        # Fallback default (Netflix, HBO Max, Paramount+ -> 07:00 UTC)
-                        show_time_stemp = show_time_stemp.replace(hour=7)
-                        show_path = ep.get("show") or ep.get("_embedded", {}).get("show", {})
-                        web_channel_obj = show_path.get("webChannel") or ep.get("webChannel") or {}
-                        web_channel = web_channel_obj.get("name") if isinstance(web_channel_obj, dict) else None
-                        if web_channel:
-                            if web_channel == "Prime Video":
-                                show_time_stemp = show_time_stemp.replace(hour=0)
-                            elif web_channel == "Apple TV":
-                                show_time_stemp = show_time_stemp.replace(hour=1)
-                            elif web_channel == "Disney+":
-                                show_time_stemp = (show_time_stemp + timedelta(days=1)).replace(hour=1)
-                            elif web_channel == "Hulu":
-                                show_time_stemp = show_time_stemp.replace(hour=4)
-                            elif web_channel == "Peacock":
-                                show_time_stemp = show_time_stemp.replace(hour=9)
-
-                                
-                    if db_item:
-                        new_ep_formated.append({
+                episode_type = (episode.get('episode') or {}).get('episode_type') or None
+                if episode_type:
+                    episode_type = episode_type.split("_")
+                    episode_type = " ".join(episode_type)
+                if db_item and airstamp:
+                    new_ep_formated.append({
                             "id": db_item.get("id"),
                             "show_name": db_item.get("title"),
-                            "season": ep.get("season"),
-                            "episode": ep.get("number"),
-                            "airstamp": show_time_stemp.isoformat(),
-                            "type": ep.get("type"),
-                            "name": ep.get("name"),
+                            "season": (episode.get('episode') or {}).get('season'),
+                            "episode": (episode.get('episode') or {}).get('number'),
+                            "airstamp": airstamp,
+                            "type": episode_type or "standard",
+                            "name": (episode.get('episode') or {}).get('title'),
                             "poster_path": db_item.get("poster_path"),
                         })
+    
 
 
-                new_ep_by_show = {}
+        new_ep_by_show = {}
+        for ep in new_ep_formated:
+            show_id = str(ep.get("id"))
+            if show_id not in new_ep_by_show:
+                new_ep_by_show[show_id] = []
+            new_ep_by_show[show_id].append(ep)
+        list_new_ep_by_show = list(new_ep_by_show.values())
+        target_url = "https://media-release-notification.vercel.app/api/notification/tv"
+        for show in list_new_ep_by_show:
+            show_time_stemp = datetime.fromisoformat(show[0].get("airstamp") or "1970-01-01T12:00:00+00:00")
+            now_time_stemp = datetime.now(timezone.utc)
+            seconds_left = int(max(0, show_time_stemp.timestamp() - now_time_stemp.timestamp())) 
+            qstash_task_header= {
+                "Authorization": f"Bearer {QSTASH_TOKEN}",
+                "Content-Type": "application/json",
+                "Upstash-Delay": f"{seconds_left}s",
+                "Upstash-Forward-Authorization": f"Bearer {os.environ.get('PASSWORD')}"
+            }
+            qstash_publish_endpoint = f"{QSTASH_URL}/publish/{target_url}"
+            qstash_task_payload = show
+            response = requests.post(qstash_publish_endpoint, headers=qstash_task_header, json=qstash_task_payload)
+        # id_list = [item.get("tvmaze_id") for item in db_data if (item.get("media_type") == "tv" and item.get("tvmaze_id", ""))]
+        # date_iso = datetime.now(timezone.utc).date().isoformat()
 
-                for ep in new_ep_formated:
-                    show_id = str(ep.get("id"))
-                    if show_id not in new_ep_by_show:
-                        new_ep_by_show[show_id] = []
-                    new_ep_by_show[show_id].append(ep)
+        # response = requests.get(f"https://api.tvmaze.com/schedule/?date={date_iso}")
+        # response_web = requests.get(f"https://api.tvmaze.com/schedule/web?date={date_iso}&country=")
+        # data = response.json() or []
+        # data_web = response_web.json() or [] 
+        
+        # existing_ids = {ep.get("id") for ep in data + data_web if ep.get("id") is not None}
+        # response_full = requests.get("https://api.tvmaze.com/schedule/full")
+        # data_full = response_full.json() or []
+        # fallback_eps = []
+        # for ep in data_full:
+        #     airstamp = ep.get("airstamp")
+        #     if airstamp and airstamp.startswith(date_iso) and ep.get("id") not in existing_ids:
+        #         fallback_eps.append(ep)
+        
+        # new_ep = []
+        # name_list = []
+        # for item in db_data:
+        #     if item.get("tvmaze_id"):
+        #         # Add the main title
+        #         if item.get("title"):
+        #             name_list.append(item["title"])
+        #         # Add all alternative titles
+        #         alt_titles = item.get("alternative_titles") or []
+        #         for alt in alt_titles:
+        #             if alt.get("title"):
+        #                 name_list.append(alt["title"])
+        
+        # name_set = {normalize_title(t) for t in name_list}
+        # if data or data_web or fallback_eps:
+        #     for ep in data + data_web + fallback_eps:
+        #         tv_show_info = (ep.get("show") or {}) or ((ep.get("_embedded") or {}).get("show") or {})
+        #         tvmaze_id = tv_show_info.get("id")
+        #         tvmaze_show_name = tv_show_info.get("name", "")
+        #         if tvmaze_id in id_list or normalize_title(tvmaze_show_name) in name_set:
+        #             new_ep.append(ep)
+        #     if new_ep:
+        #         new_ep_formated = []
+        #         for ep in new_ep:
+        #             tv_show_info = (ep.get("show") or {}) or ((ep.get("_embedded") or {}).get("show") or {})
+        #             tvmaze_id = tv_show_info.get("id")
+        #             tvmaze_show_name = tv_show_info.get("name", "")
+        #             db_item = next((item for item in db_data if is_show_match(item, tvmaze_id, tvmaze_show_name)), {})
+                    
+        #             show_time_stemp = datetime.fromisoformat(ep.get("airstamp") or f"{ep.get('airdate')}T12:00:00+00:00")
+        #             if not ep.get("airtime"):
+        #                 # Fallback default (Netflix, HBO Max, Paramount+ -> 07:00 UTC)
+        #                 show_time_stemp = show_time_stemp.replace(hour=7)
+        #                 show_path = ep.get("show") or ep.get("_embedded", {}).get("show", {})
+        #                 web_channel_obj = show_path.get("webChannel") or ep.get("webChannel") or {}
+        #                 web_channel = web_channel_obj.get("name") if isinstance(web_channel_obj, dict) else None
+        #                 if web_channel:
+        #                     if web_channel == "Prime Video":
+        #                         show_time_stemp = show_time_stemp.replace(hour=0)
+        #                     elif web_channel == "Apple TV":
+        #                         show_time_stemp = show_time_stemp.replace(hour=1)
+        #                     elif web_channel == "Disney+":
+        #                         show_time_stemp = (show_time_stemp + timedelta(days=1)).replace(hour=1)
+        #                     elif web_channel == "Hulu":
+        #                         show_time_stemp = show_time_stemp.replace(hour=4)
+        #                     elif web_channel == "Peacock":
+        #                         show_time_stemp = show_time_stemp.replace(hour=9)
 
-                list_new_ep_by_show = list(new_ep_by_show.values())
-
-                target_url = "https://media-release-notification.vercel.app/api/notification/tv"
-
-
-                for show in list_new_ep_by_show:
-
-                    show_time_stemp = datetime.fromisoformat(show[0].get("airstamp") or "1970-01-01T12:00:00+00:00")
-                    now_time_stemp = datetime.now(timezone.utc)
-                    seconds_left = int(max(0, show_time_stemp.timestamp() - now_time_stemp.timestamp())) 
-
-                    qstash_task_header= {
-                        "Authorization": f"Bearer {QSTASH_TOKEN}",
-                        "Content-Type": "application/json",
-                        "Upstash-Delay": f"{seconds_left}s",
-                        "Upstash-Forward-Authorization": f"Bearer {os.environ.get('PASSWORD')}"
-                    }
-
-                    qstash_publish_endpoint = f"{QSTASH_URL}/publish/{target_url}"
-                    qstash_task_payload = show
-                    response = requests.post(qstash_publish_endpoint, headers=qstash_task_header, json=qstash_task_payload)
+                                
+        #             if db_item:
+        #                 new_ep_formated.append({
+        #                     "id": db_item.get("id"),
+        #                     "show_name": db_item.get("title"),
+        #                     "season": ep.get("season"),
+        #                     "episode": ep.get("number"),
+        #                     "airstamp": show_time_stemp.isoformat(),
+        #                     "type": ep.get("type"),
+        #                     "name": ep.get("name"),
+        #                     "poster_path": db_item.get("poster_path"),
+        #                 })
         return jsonify({"success": "true", "message": "check_tv notification successfully"}), 200
         
     except Exception as e:
