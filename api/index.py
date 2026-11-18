@@ -1633,7 +1633,7 @@ def send_tv_notification():
 
             what_new = "Episode"
             if episode.get("type") and episode.get("type") != "standard":
-                what_new = episode.get("type").capitalize()
+                what_new = episode.get("type").title()
             
             
             # if show_data:
