@@ -1625,30 +1625,33 @@ def send_tv_notification():
 
             episode = body[0]
             show_id = episode.get("id")
-            respons = requests.get(f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}")
-            show_data = {}
-            if respons.status_code == 200:
-                show_data = respons.json()
+            # respons = requests.get(f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}")
+            # show_data = {}
+            # if respons.status_code == 200:
+            #     show_data = respons.json()
             item = get_item_data_from_db({'id': show_id, "media_type": "tv"})
 
             what_new = "Episode"
+            if episode.get("type") and episode.get("type") != "standard":
+                what_new = episode.get("type").capitalize()
             
-            if show_data:
-                season_number = episode.get("season")
-                seasons = show_data.get("seasons") or []
-                season_data = next((s for s in seasons if s.get("season_number") == season_number), None)
-                if season_data:
-                    max_episodes = season_data.get("episode_count")
-                    if max_episodes and max_episodes == episode.get("episode"):
-                        if max_episodes != 1:
-                            what_new = "Season Finale"
-                        else:
-                            what_new = "Special"
-            if what_new != "Special":
-                if episode.get("episode") == 1:
-                    what_new = "Season"
-                    if episode.get("season") == 1:
-                        what_new = "Show"
+            
+            # if show_data:
+            #     season_number = episode.get("season")
+            #     seasons = show_data.get("seasons") or []
+            #     season_data = next((s for s in seasons if s.get("season_number") == season_number), None)
+            #     if season_data:
+            #         max_episodes = season_data.get("episode_count")
+            #         if max_episodes and max_episodes == episode.get("episode"):
+            #             if max_episodes != 1:
+            #                 what_new = "Season Finale"
+            #             else:
+            #                 what_new = "Special"
+            # if what_new != "Special":
+            #     if episode.get("episode") == 1:
+            #         what_new = "Season"
+            #         if episode.get("season") == 1:
+            #             what_new = "Show"
                     
 
             if episode.get("name") and episode.get("name") != "TBA" and episode.get("name") != "tbd":
