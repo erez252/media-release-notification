@@ -2806,7 +2806,7 @@ def get_tv_info():
             show.update(wiki_data)
         
         if show.get("imdb_id"):
-            show["stremio_link"]= f"stremio://detail/movie/{show.get("imdb_id")}"
+            show["stremio_link"]= f"stremio://detail/series/{show.get("imdb_id")}"
         t1.join()
         return jsonify(show), 200
     except Exception as e:
