@@ -924,59 +924,11 @@ def get_wikidata_data(wiki_id, media_type):
                     }}
                 }}
     
-                UNION
-    
-                {{
-                    BIND("reviewScore" AS ?type)
-    
-                    wd:{wiki_id} p:P444 ?score_statement .
-                    ?score_statement ps:P444 ?reviewScore .
-    
-                    OPTIONAL {{
-                        ?score_statement pq:P447 ?scoreSource .
-                        BIND(STRAFTER(STR(?scoreSource), "/entity/") AS ?scoreSourceID)
-    
-                        OPTIONAL {{
-                            ?scoreSource wdt:P154 ?scoreSourceLogo .
-                        }}
-                    }}
-    
-                    OPTIONAL {{
-                        ?score_statement pq:P585 ?scoreDate .
-                    }}
-    
-                    OPTIONAL {{
-                        ?score_statement pq:P459 ?scoreMethod .
-                        BIND(STRAFTER(STR(?scoreMethod), "/entity/") AS ?scoreMethodID)
-                    }}
-    
-                    OPTIONAL {{
-                        ?score_statement pqv:P7887 ?reviewCountValue .
-    
-                        ?reviewCountValue wikibase:quantityAmount ?reviewCount ;
-                                          wikibase:quantityUnit ?reviewCountUnit .
-    
-                        BIND(STRAFTER(STR(?reviewCountUnit), "/entity/") AS ?reviewCountUnitID)
-                    }}
-    
-                    SERVICE wikibase:label {{
-                        bd:serviceParam wikibase:language "en,mul" .
-                        ?scoreSource rdfs:label ?scoreSourceName .
-                        ?scoreMethod rdfs:label ?scoreMethodName .
-                        ?reviewCountUnit rdfs:label ?reviewCountUnitName .
-                    }}
-                }}
     
                 UNION
                 {{
                     BIND("disneyPlus" AS ?type)
                     wd:{wiki_id} wdt:P7595 ?disneyPlusID .
-                }}
-    
-                UNION
-                {{
-                    BIND("trakt" AS ?type)
-                    wd:{wiki_id} wdt:P8013 ?traktID .
                 }}
     
                 UNION
