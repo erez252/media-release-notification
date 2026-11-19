@@ -2513,6 +2513,45 @@ def get_movie_info():
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
 
+def get_tv_episodes(trakt_id):
+    episodes = []
+    try:
+        response = requests.get(
+            f"https://api.trakt.tv/shows/{trakt_id}/seasons?extended=episodes,full",
+            headers=trakt_header
+        )
+        seasons = response.json()
+        for season in seasons:
+            for ep in season.get("episodes"):
+                try:
+                    first_aired = datetime.fromisoformat(ep.get('first_aired'))
+                    imgs = ep.get('images') or {}
+                    img_list = imgs.get('screenshot') or []
+                    img = None
+                    if img_list:
+                        img = f"https://{img_list[0]}"
+
+                    episodes.append({
+                        "airdate": first_aired.date().isoformat(),
+                        "airstamp": first_aired.isoformat(),
+                        "airtime": "",
+                        "id": (ep.get('ids') or {}).get('tmdb') or "",
+                        "image": {"medium": img},
+                        "name": ep.get('title'),
+                        "number": ep.get('number'),
+                        "season": ep.get('season'),
+                        "rating": {"average": ep.get('rating')},
+                        "runtime": ep.get('runtime'),
+                        "summary": ep.get('overview'),
+                        "type": ep.get('episode_type'),
+                        "url": None,
+                    })
+                except:
+                    continue
+        return episodes
+    except:
+        return []
+
 @app.route('/api/info/tv', methods=['POST'])
 def get_tv_info():
     try:
@@ -2525,6 +2564,21 @@ def get_tv_info():
         if not tv_id:
             return jsonify({"error": "misiing id"})
 
+        def get_trakt_ep():
+            trakt_id = body.get("traktid") or ""
+            if not trakt_id:
+                trakt_response = requests.get(f"https://api.trakt.tv/search/tmdb/{tv_id}?type=show", headers=trakt_header)
+                trakt_data = trakt_response.json() or []
+                if trakt_data:
+                    trakt_id = ((trakt_data[0].get("show") or {}).get("ids") or {}).get("trakt")
+            
+            if trakt_id:
+                episodes = get_tv_episodes(trakt_id)
+                show["episodes"] = episodes or None
+        
+        t1 = threading.Thread(target=get_trakt_ep)
+        t1.start()
+        
         wiki_data = {}
         executor = ThreadPoolExecutor(max_workers=1)
         future = None
@@ -2634,46 +2688,46 @@ def get_tv_info():
             show["tvdb_id"] = external_ids.get("tvdb_id")
 
 
-        tvmaze_id = body.get("tvmazeid") or ""
-        if not tvmaze_id:
-            if show.get("imdb_id"):
-                response = requests.get(f"https://api.tvmaze.com/lookup/shows?imdb={show.get('imdb_id')}")
-                if response.status_code == 200:
-                    tvmaze_data = response.json()
-                    show["tvmaze_id"] = tvmaze_data.get("id")
-            if not show.get("tvmaze_id") and show.get("tvdb_id", ""):
-                response = requests.get(f"https://api.tvmaze.com/lookup/shows?thetvdb={show.get('tvdb_id')}")
-                if response.status_code == 200:
-                    tvmaze_data = response.json()
-                    show["tvmaze_id"] = tvmaze_data.get("id")
-        else:
-            show["tvmaze_id"] = tvmaze_id
+        # tvmaze_id = body.get("tvmazeid") or ""
+        # if not tvmaze_id:
+        #     if show.get("imdb_id"):
+        #         response = requests.get(f"https://api.tvmaze.com/lookup/shows?imdb={show.get('imdb_id')}")
+        #         if response.status_code == 200:
+        #             tvmaze_data = response.json()
+        #             show["tvmaze_id"] = tvmaze_data.get("id")
+        #     if not show.get("tvmaze_id") and show.get("tvdb_id", ""):
+        #         response = requests.get(f"https://api.tvmaze.com/lookup/shows?thetvdb={show.get('tvdb_id')}")
+        #         if response.status_code == 200:
+        #             tvmaze_data = response.json()
+        #             show["tvmaze_id"] = tvmaze_data.get("id")
+        # else:
+        #     show["tvmaze_id"] = tvmaze_id
 
-        if show.get("tvmaze_id"):
-            print(show.get("tvmaze_id"))
+        # if show.get("tvmaze_id"):
+        #     print(show.get("tvmaze_id"))
 
-            response = requests.get(f"https://api.tvmaze.com/shows/{show.get("tvmaze_id")}/episodes?specials=1")
-            episodes = response.json()
-            if episodes:
-                show_tvmaze_data = requests.get(f"https://api.tvmaze.com/shows/{show.get("tvmaze_id")}").json()
-                for episode in episodes:
-                    airstamp = datetime.fromisoformat(episode.get("airstamp") or f"{episode.get('airdate')}T12:00:00+00:00")
-                    if not episode.get("airtime"):
-                        airstamp = airstamp.replace(hour=7)
-                        web_channel = (show_tvmaze_data.get("webChannel") or {}).get("name")
-                        if web_channel:
-                            if web_channel == "Prime Video":
-                                airstamp = airstamp.replace(hour=0)
-                            elif web_channel == "Apple TV":
-                                airstamp = airstamp.replace(hour=1)
-                            elif web_channel == "Disney+":
-                                airstamp = (airstamp + timedelta(days=1)).replace(hour=1)
-                            elif web_channel == "Hulu":
-                                airstamp = airstamp.replace(hour=4)
-                            elif web_channel == "Peacock":
-                                airstamp = airstamp.replace(hour=9)
-                    episode["airstamp"] = airstamp
-                show["episodes"] = episodes
+        #     response = requests.get(f"https://api.tvmaze.com/shows/{show.get("tvmaze_id")}/episodes?specials=1")
+        #     episodes = response.json()
+        #     if episodes:
+        #         show_tvmaze_data = requests.get(f"https://api.tvmaze.com/shows/{show.get("tvmaze_id")}").json()
+        #         for episode in episodes:
+        #             airstamp = datetime.fromisoformat(episode.get("airstamp") or f"{episode.get('airdate')}T12:00:00+00:00")
+        #             if not episode.get("airtime"):
+        #                 airstamp = airstamp.replace(hour=7)
+        #                 web_channel = (show_tvmaze_data.get("webChannel") or {}).get("name")
+        #                 if web_channel:
+        #                     if web_channel == "Prime Video":
+        #                         airstamp = airstamp.replace(hour=0)
+        #                     elif web_channel == "Apple TV":
+        #                         airstamp = airstamp.replace(hour=1)
+        #                     elif web_channel == "Disney+":
+        #                         airstamp = (airstamp + timedelta(days=1)).replace(hour=1)
+        #                     elif web_channel == "Hulu":
+        #                         airstamp = airstamp.replace(hour=4)
+        #                     elif web_channel == "Peacock":
+        #                         airstamp = airstamp.replace(hour=9)
+        #             episode["airstamp"] = airstamp
+        #         show["episodes"] = episodes
 
 
         age_rating = ""
@@ -2697,7 +2751,8 @@ def get_tv_info():
             wiki_data = None
         if wiki_data:
             show.update(wiki_data)
-            
+        
+        t1.join()
         return jsonify(show), 200
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
