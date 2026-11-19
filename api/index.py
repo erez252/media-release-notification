@@ -2660,6 +2660,7 @@ def get_tv_info():
             "homepage": data.get("homepage", ""),
             "id": data.get("id", ""),
             "imdb_id": data.get("imdb_id", "") or (data.get('external_ids') or {}).get("imdb_id") or None,
+            "tvmaze_id": body.get("tvmazeid") or None,
             "wikidata_id": (data.get('external_ids') or {}).get("wikidata_id") or None,
             "keywords": (data.get("keywords") or {}).get("keywords") or [],
         })
