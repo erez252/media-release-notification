@@ -2600,7 +2600,7 @@ def get_tv_info():
                 show["episodes"] = episodes or None
                 trakt_data = get_trakt_data(trakt_id, "tv")
                 if trakt_data:
-                    show.extend(trakt_data)
+                    show.update(trakt_data)
                     show["trakt"] = f"https://trakt.tv/shows/{trakt_id}"
                 
         t1 = threading.Thread(target=get_all_trakt_data)
@@ -2614,7 +2614,7 @@ def get_tv_info():
         
         response = requests.get(f"https://api.themoviedb.org/3/tv/{tv_id}?api_key={TMDB_API_KEY}&append_to_response=keywords,release_dates,videos,credits,content_ratings,external_ids")
         data = response.json()
-        show.extend({
+        show.update({
             "title": data.get("name", ""),
             "poster_path": data.get("poster_path", ""),
             "backdrop_path": data.get("backdrop_path", ""),
