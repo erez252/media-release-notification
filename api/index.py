@@ -2540,7 +2540,7 @@ def get_tv_episodes(trakt_id):
                         "name": ep.get('title'),
                         "number": ep.get('number'),
                         "season": ep.get('season'),
-                        "rating": {"average": ep.get('rating')},
+                        "rating": {"average": round(ep.get('rating'), 1) if ep.get('rating') is not None else None},
                         "runtime": ep.get('runtime'),
                         "summary": ep.get('overview'),
                         "type": ep.get('episode_type'),
@@ -2564,7 +2564,7 @@ def get_tv_info():
         if not tv_id:
             return jsonify({"error": "misiing id"})
 
-        def get_trakt_ep():
+        def get_trakt_data():
             trakt_id = body.get("traktid") or ""
             if not trakt_id:
                 trakt_response = requests.get(f"https://api.trakt.tv/search/tmdb/{tv_id}?type=show", headers=trakt_header)
@@ -2576,7 +2576,7 @@ def get_tv_info():
                 episodes = get_tv_episodes(trakt_id)
                 show["episodes"] = episodes or None
         
-        t1 = threading.Thread(target=get_trakt_ep)
+        t1 = threading.Thread(target=get_trakt_data)
         t1.start()
         
         wiki_data = {}
