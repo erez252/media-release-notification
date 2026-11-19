@@ -1119,56 +1119,8 @@ def get_wikidata_data(wiki_id, media_type):
 
                 UNION
                 {{
-                    BIND("reviewScore" AS ?type)
-
-                    wd:{wiki_id} p:P444 ?score_statement .
-                    ?score_statement ps:P444 ?reviewScore .
-
-                    OPTIONAL {{
-                        ?score_statement pq:P447 ?scoreSource .
-                        BIND(STRAFTER(STR(?scoreSource), "/entity/") AS ?scoreSourceID)
-
-                        OPTIONAL {{
-                            ?scoreSource wdt:P154 ?scoreSourceLogo .
-                        }}
-                    }}
-
-                    OPTIONAL {{
-                        ?score_statement pq:P585 ?scoreDate .
-                    }}
-
-                    OPTIONAL {{
-                        ?score_statement pq:P459 ?scoreMethod .
-                        BIND(STRAFTER(STR(?scoreMethod), "/entity/") AS ?scoreMethodID)
-                    }}
-
-                    OPTIONAL {{
-                        ?score_statement pqv:P7887 ?reviewCountValue .
-
-                        ?reviewCountValue wikibase:quantityAmount ?reviewCount ;
-                                          wikibase:quantityUnit ?reviewCountUnit .
-
-                        BIND(STRAFTER(STR(?reviewCountUnit), "/entity/") AS ?reviewCountUnitID)
-                    }}
-
-                    SERVICE wikibase:label {{
-                        bd:serviceParam wikibase:language "en,mul" .
-                        ?scoreSource rdfs:label ?scoreSourceName .
-                        ?scoreMethod rdfs:label ?scoreMethodName .
-                        ?reviewCountUnit rdfs:label ?reviewCountUnitName .
-                    }}
-                }}
-
-                UNION
-                {{
                     BIND("disneyPlus" AS ?type)
                     wd:{wiki_id} wdt:P7596 ?disneyPlusID .
-                }}
-
-                UNION
-                {{
-                    BIND("trakt" AS ?type)
-                    wd:{wiki_id} wdt:P8013 ?traktID .
                 }}
 
                 UNION
@@ -1328,7 +1280,125 @@ def get_wikidata_data(wiki_id, media_type):
         
     except:
         return {}
+  
+def get_trakt_data(trakt_id, media_type):
+    if media_type == "movie":
+        response_main_data = requests.get(
+            f"https://api.trakt.tv/movies/{trakt_id}?extended=full",
+            headers=trakt_header
+        )
+        response = requests.get(
+            f"https://api.trakt.tv/movies/{trakt_id}/ratings?extended=all",
+            headers=trakt_header
+        )
+    elif media_type == "tv":
+        response_main_data = requests.get(
+            f"https://api.trakt.tv/shows/{trakt_id}?extended=full",
+            headers=trakt_header
+        )
+        response = requests.get(
+            f"https://api.trakt.tv/shows/{trakt_id}/ratings?extended=all",
+            headers=trakt_header
+        )
+    else:
+        return
+    if response_main_data.status_code == 200:
+        main_data = response_main_data.json()
+    if response.status_code == 200:
+        ratings = response.json()
+    formatted_ratings = []
+    if ratings:
+        for website, rating in ratings.items():
+            if rating.get('rating'):
+                if website == "trakt":
+                    formatted_ratings.append({
+                        "review_count": rating.get('votes'),
+                        "review_count_unit": "user rating",
+                        "score": f"{round(rating.get('rating'), 1)}/10",
+                        "score_method": "Trakt.tv score",
+                        "source": "Trakt",
+                        "source_logo": "https://www.google.com/s2/favicons?domain=trakt.tv&sz=256"
+                    })
+                if website == "tmdb":
+                    formatted_ratings.append({
+                        "review_count": rating.get('votes'),
+                        "review_count_unit": "user rating",
+                        "score": f"{round(rating.get('rating'), 1)}/10",
+                        "score_method": "TMDB score",
+                        "source": "TMDB",
+                        "source_logo": "https://www.google.com/s2/favicons?domain=themoviedb.org&sz=256"
+                    })
+                if website == "imdb":
+                    formatted_ratings.append({
+                        "review_count": rating.get('votes'),
+                        "review_count_unit": "user rating",
+                        "score": f"{round(rating.get('rating'), 1)}/10",
+                        "score_method": "IMDB score",
+                        "source": "IMDB",
+                        "source_logo": "https://www.google.com/s2/favicons?domain=imdb.com&sz=256"
+                    })
+                if website == "metascore":
+                    formatted_ratings.append({
+                        "review_count": rating.get('votes'),
+                        "review_count_unit": "critic reviews",
+                        "score": f"{round(rating.get('rating'), 1)}/10",
+                        "score_method": "metacritic score",
+                        "source": "metacritic",
+                        "source_logo": "https://www.google.com/s2/favicons?domain=metacritic.com&sz=256"
+                    })
+
+                if website == "rotten_tomatoes":
+                    formatted_ratings.append({
+                        "review_count": rating.get('votes'),
+                        "review_count_unit": "critic review",
+                        "score": f"{round(rating.get('rating'), 1)}/100",
+                        "score_method": "tomatometer score",
+                        "source": "Rotten Tomatoes",
+                        "source_logo": "https://www.google.com/s2/favicons?domain=rottentomatoes.com&sz=256"
+                    })
+                    if rating.get('user_rating'):
+                        formatted_ratings.append({
+                            "review_count": None,
+                            "review_count_unit": "user review",
+                            "score": f"{round(rating.get('user_rating'), 1)}/100",
+                            "score_method": "popcornmeter score",
+                            "source": "Rotten Tomatoes",
+                            "source_logo": "https://www.google.com/s2/favicons?domain=rottentomatoes.com&sz=256"
+                        })
+                if website == "mal":
+                    formatted_ratings.append({
+                        "review_count": rating.get('votes'),
+                        "review_count_unit": "user reviews",
+                        "score": f"{round(rating.get('rating'), 1)}/10",
+                        "score_method": "My Anime List score",
+                        "source": "My Anime List",
+                        "source_logo": "https://www.google.com/s2/favicons?domain=myanimelist.net&sz=256"
+                    })
+
+                if website == "letterboxd":
+                    formatted_ratings.append({
+                        "review_count": rating.get('votes'),
+                        "review_count_unit": "user reviews",
+                        "score": f"{round(rating.get('rating'), 1)}/5",
+                        "score_method": "Letterboxd reviews",
+                        "source": "Letterboxd",
+                        "source_logo": "https://www.google.com/s2/favicons?domain=letterboxd.com&sz=256"
+                    })
+            
     
+    formatted_data = {}
+    if main_data:
+        formatted_data["after_credits"] = main_data.get("after_credits")
+        formatted_data["during_credits"] = main_data.get("during_credits")
+        if media_type == "tv":
+            formatted_data["airs"] = main_data.get("airs")
+            formatted_data["total_runtime"] = main_data.get("total_runtime")
+            formatted_data["runtime"] = main_data.get("runtime")
+               
+    if formatted_ratings:
+        formatted_data["scores"] = formatted_ratings
+     
+    return formatted_data  
 @app.route('/api/get-data', methods=['POST'])
 def get_watchlist():
     body = request.get_json() or {}
@@ -2304,8 +2374,7 @@ def get_movie_info():
         executor = ThreadPoolExecutor(max_workers=1)
         future = None
         if body.get("wikiDataId"):
-            future = executor.submit(get_wikidata_data, body.get("wikiDataId"), "movie")
-            
+            future = executor.submit(get_wikidata_data, body.get("wikiDataId"), "movie")   
         response = requests.get(f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&append_to_response=keywords,release_dates,videos,credits,external_ids")
         data = response.json()
 
@@ -2515,8 +2584,10 @@ def get_tv_info():
         tv_id = body.get("showId") or ""
         if not tv_id:
             return jsonify({"error": "misiing id"})
-
-        def get_trakt_data():
+        
+        show = {}
+        
+        def get_all_trakt_data():
             trakt_id = body.get("traktid") or ""
             if not trakt_id:
                 trakt_response = requests.get(f"https://api.trakt.tv/search/tmdb/{tv_id}?type=show", headers=trakt_header)
@@ -2527,8 +2598,12 @@ def get_tv_info():
             if trakt_id:
                 episodes = get_tv_episodes(trakt_id)
                 show["episodes"] = episodes or None
-        
-        t1 = threading.Thread(target=get_trakt_data)
+                trakt_data = get_trakt_data(trakt_id, "tv")
+                if trakt_data:
+                    show.extend(trakt_data)
+                    show["trakt"] = f"https://trakt.tv/shows/{trakt_id}"
+                
+        t1 = threading.Thread(target=get_all_trakt_data)
         t1.start()
         
         wiki_data = {}
@@ -2539,14 +2614,13 @@ def get_tv_info():
         
         response = requests.get(f"https://api.themoviedb.org/3/tv/{tv_id}?api_key={TMDB_API_KEY}&append_to_response=keywords,release_dates,videos,credits,content_ratings,external_ids")
         data = response.json()
-        show = {
+        show.extend({
             "title": data.get("name", ""),
             "poster_path": data.get("poster_path", ""),
             "backdrop_path": data.get("backdrop_path", ""),
             "release_date": data.get("first_air_date", ""),
             "last_air_date": data.get("last_air_date", ""),
             "next_air_date": (data.get("next_episode_to_air") or {}).get("air_date", None),
-            "runtime": data.get("episode_run_time", 0),
             "vote_average": data.get("vote_average", 0.0),
             "vote_count": data.get("vote_count", 0),
             "status": data.get("status", ""),
@@ -2565,7 +2639,11 @@ def get_tv_info():
             "imdb_id": data.get("imdb_id", "") or (data.get('external_ids') or {}).get("imdb_id") or None,
             "wikidata_id": (data.get('external_ids') or {}).get("wikidata_id") or None,
             "keywords": (data.get("keywords") or {}).get("keywords") or [],
-        }
+        })
+        
+        if not show.get("runtime"):
+            show["runtime"] = data.get("episode_run_time", 0)
+            
 
 
         # videos 
