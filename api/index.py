@@ -1341,7 +1341,7 @@ def get_trakt_data(trakt_id, media_type):
                     formatted_ratings.append({
                         "review_count": rating.get('votes'),
                         "review_count_unit": "critic reviews",
-                        "score": f"{round(rating.get('rating'), 1)}/10",
+                        "score": f"{round(rating.get('rating'), 1)}/100",
                         "score_method": "metacritic score",
                         "source": "metacritic",
                         "source_logo": "https://www.google.com/s2/favicons?domain=metacritic.com&sz=256"
@@ -1399,6 +1399,7 @@ def get_trakt_data(trakt_id, media_type):
         formatted_data["scores"] = formatted_ratings
      
     return formatted_data  
+
 @app.route('/api/get-data', methods=['POST'])
 def get_watchlist():
     body = request.get_json() or {}
@@ -2371,6 +2372,7 @@ def get_movie_info():
             return jsonify({"error": "misiing id"})
 
         wiki_data = {}
+        movie = {}
         executor = ThreadPoolExecutor(max_workers=1)
         future = None
         if body.get("wikiDataId"):
@@ -2378,7 +2380,24 @@ def get_movie_info():
         response = requests.get(f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&append_to_response=keywords,release_dates,videos,credits,external_ids")
         data = response.json()
 
-        movie = {
+        def get_all_trakt_data():
+            trakt_id = body.get("traktid") or ""
+            if not trakt_id:
+                trakt_response = requests.get(f"https://api.trakt.tv/search/tmdb/{movie_id}?type=movie", headers=trakt_header)
+                trakt_data = trakt_response.json() or []
+                if trakt_data:
+                    trakt_id = ((trakt_data[0].get("show") or {}).get("ids") or {}).get("trakt")
+                    
+            if trakt_id:
+                trakt_data = get_trakt_data(trakt_id, "movie")
+                if trakt_data:
+                    movie.update(trakt_data)
+                    movie["trakt"] = f"https://trakt.tv/movies/{trakt_id}"
+        
+        t1 = threading.Thread(target=get_all_trakt_data)
+        t1.start()             
+        
+        movie.update({
             "title": data.get("title", ""),
             "poster_path": data.get("poster_path", ""),
             "backdrop_path": data.get("backdrop_path", ""),
@@ -2400,7 +2419,7 @@ def get_movie_info():
             "imdb_id": data.get("imdb_id", ""),
             "wikidata_id": (data.get('external_ids') or {}).get("wikidata_id") or None,
             "keywords": (data.get("keywords") or {}).get("keywords") or [],
-        }
+        })
 
         # digital and expected_on_digital if not digital
         next_digital_date = "Unknown(?)"
@@ -2530,6 +2549,7 @@ def get_movie_info():
         if wiki_data:
             movie.update(wiki_data)
 
+        t1.join()
         return jsonify(movie), 200
     except Exception as e:
         return jsonify({"success": False, "message": f"{e}"}), 500
