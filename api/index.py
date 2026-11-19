@@ -2386,7 +2386,7 @@ def get_movie_info():
                 trakt_response = requests.get(f"https://api.trakt.tv/search/tmdb/{movie_id}?type=movie", headers=trakt_header)
                 trakt_data = trakt_response.json() or []
                 if trakt_data:
-                    trakt_id = ((trakt_data[0].get("show") or {}).get("ids") or {}).get("trakt")
+                    trakt_id = ((trakt_data[0].get("movie") or {}).get("ids") or {}).get("trakt")
                     
             if trakt_id:
                 trakt_data = get_trakt_data(trakt_id, "movie")
