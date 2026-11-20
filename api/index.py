@@ -1391,6 +1391,7 @@ def get_trakt_data(trakt_id, media_type):
             formatted_data["total_runtime"] = main_data.get("total_runtime")
             formatted_data["runtime"] = main_data.get("runtime")
             formatted_data["network"] = main_data.get("network")
+            formatted_data["ending"] = main_data.get("ending")
                
     if formatted_ratings:
         formatted_data["scores"] = formatted_ratings
