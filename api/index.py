@@ -1390,6 +1390,7 @@ def get_trakt_data(trakt_id, media_type):
             formatted_data["airs"] = main_data.get("airs")
             formatted_data["total_runtime"] = main_data.get("total_runtime")
             formatted_data["runtime"] = main_data.get("runtime")
+            formatted_data["network"] = main_data.get("network")
                
     if formatted_ratings:
         formatted_data["scores"] = formatted_ratings
